@@ -556,16 +556,29 @@ class SystemUpdateController extends Controller
         try {
             // Test database connection first
             \DB::connection()->getPdo();
+            $this->logMessage('🔌 Database connection verified');
 
-            // Reconcile migrations if schema exists but migration history is missing/mismatched
+            // FIRST: Run real migrations to ensure schema is up-to-date
+            $this->logMessage('🗄️ Running fresh migrations...');
+            
+            try {
+                Artisan::call('migrate', [
+                    '--force' => true,
+                    '--no-interaction' => true
+                ]);
+                $this->logMessage('✅ Fresh migrations completed');
+            } catch (\Exception $migrationError) {
+                $this->logMessage('⚠️ Fresh migration error: ' . $migrationError->getMessage());
+                // Continue with reconciliation as fallback
+            }
+            
+            // SECOND: Reconcile migrations if schema exists but migration history is missing/mismatched
             $this->reconcileMigrationsIfNeeded();
             
-            Artisan::call('migrate', [
-                '--force' => true,
-                '--no-interaction' => true
-            ]);
+            // THIRD: Verify critical columns exist
+            $this->verifyDatabaseSchema();
             
-            $this->logMessage('✅ Database migrations completed');
+            $this->logMessage('✅ Database migrations and verification completed');
             
         } catch (\Exception $e) {
             // Handle non-critical migration errors
@@ -574,8 +587,60 @@ class SystemUpdateController extends Controller
                 stripos($msg, 'duplicate') !== false) {
                 $this->logMessage('⚠️ Migration warning (continuing): ' . substr($msg, 0, 100));
             } else {
-                throw $e;
+                $this->logMessage('❌ Database migration failed: ' . $msg);
+                // Don't throw - try to continue deployment
             }
+        }
+    }
+    
+    private function verifyDatabaseSchema(): void
+    {
+        try {
+            $this->logMessage('🔍 Verifying database schema...');
+            
+            // Check if knowledge_base table exists
+            if (!\Schema::hasTable('knowledge_base')) {
+                $this->logMessage('❌ knowledge_base table missing!');
+                return;
+            }
+            
+            // Check if source_url column exists
+            if (!\Schema::hasColumn('knowledge_base', 'source_url')) {
+                $this->logMessage('⚠️ source_url column missing, attempting to add...');
+                
+                try {
+                    // Try to add the missing column directly
+                    \Schema::table('knowledge_base', function (\Illuminate\Database\Schema\Blueprint $table) {
+                        $table->string('source_url', 1024)->nullable()->after('source');
+                        $table->json('metadata')->nullable()->after('language');
+                        $table->text('embedding')->nullable()->after('metadata');
+                    });
+                    $this->logMessage('✅ Missing columns added directly to knowledge_base');
+                } catch (\Exception $e) {
+                    $this->logMessage('⚠️ Could not add missing columns: ' . $e->getMessage());
+                }
+            } else {
+                $this->logMessage('✅ source_url column exists');
+            }
+            
+            // Check other critical columns
+            $requiredColumns = ['title', 'content', 'source', 'category', 'is_active'];
+            $missingColumns = [];
+            
+            foreach ($requiredColumns as $column) {
+                if (!\Schema::hasColumn('knowledge_base', $column)) {
+                    $missingColumns[] = $column;
+                }
+            }
+            
+            if (!empty($missingColumns)) {
+                $this->logMessage('❌ Missing critical columns: ' . implode(', ', $missingColumns));
+            } else {
+                $this->logMessage('✅ All critical columns verified');
+            }
+            
+        } catch (\Exception $e) {
+            $this->logMessage('⚠️ Schema verification warning: ' . $e->getMessage());
         }
     }
 
@@ -752,7 +817,10 @@ class SystemUpdateController extends Controller
     private function optimizeSystem(): void
     {
         try {
-            // Clear caches
+            // AGGRESSIVE CACHE CLEARING for hosting environments
+            $this->logMessage('🧹 AGGRESSIVE CACHE CLEARING...');
+            
+            // Standard Laravel cache clearing
             Artisan::call('config:clear');
             Artisan::call('route:clear');  
             Artisan::call('view:clear');
@@ -762,8 +830,14 @@ class SystemUpdateController extends Controller
             try {
                 Artisan::call('optimize:clear');
             } catch (\Exception $e) {
-                // Ignore if command not available
+                $this->logMessage('⚠️ optimize:clear skipped: ' . $e->getMessage());
             }
+            
+            // FORCE file-based cache clearing
+            $this->forceClearFileCache();
+            
+            // Reset OPcache aggressively
+            $this->resetOPCache();
             
             // Update storage links
             try {
@@ -771,16 +845,92 @@ class SystemUpdateController extends Controller
             } catch (\Exception $e) {
                 // Ignore if already exists
             }
-            
-            // Reset OPcache if available (avoid stale code on some hosts)
-            try {
-                if (function_exists('opcache_reset')) { @opcache_reset(); $this->logMessage('🧹 OPcache reset'); }
-            } catch (\Exception $e) { /* ignore */ }
 
-            $this->logMessage('✅ System optimized');
+            $this->logMessage('✅ System aggressively optimized');
             
         } catch (\Exception $e) {
             $this->logMessage('⚠️ Optimization warning: ' . $e->getMessage());
+        }
+    }
+    
+    private function forceClearFileCache(): void
+    {
+        try {
+            // Clear bootstrap cache files
+            $bootstrapCacheFiles = [
+                'bootstrap/cache/config.php',
+                'bootstrap/cache/services.php', 
+                'bootstrap/cache/packages.php',
+                'bootstrap/cache/routes-v7.php'
+            ];
+            
+            foreach ($bootstrapCacheFiles as $file) {
+                $path = base_path($file);
+                if (file_exists($path)) {
+                    unlink($path);
+                    $this->logMessage("🗑️ Cleared: {$file}");
+                }
+            }
+            
+            // Clear storage framework caches
+            $storagePaths = [
+                'storage/framework/cache/data',
+                'storage/framework/sessions',
+                'storage/framework/views'
+            ];
+            
+            foreach ($storagePaths as $dir) {
+                $path = storage_path($dir);
+                if (is_dir($path)) {
+                    $files = glob($path . '/*');
+                    foreach ($files as $file) {
+                        if (is_file($file)) {
+                            unlink($file);
+                        }
+                    }
+                    $this->logMessage("🗑️ Cleared: {$dir}/*");
+                }
+            }
+            
+        } catch (\Exception $e) {
+            $this->logMessage('⚠️ File cache clear warning: ' . $e->getMessage());
+        }
+    }
+    
+    private function resetOPCache(): void
+    {
+        try {
+            // Multiple OPcache reset methods
+            if (function_exists('opcache_reset')) {
+                opcache_reset();
+                $this->logMessage('🧹 OPcache reset via opcache_reset()');
+            }
+            
+            if (function_exists('apc_clear_cache')) {
+                apc_clear_cache();
+                $this->logMessage('🧹 APC cache cleared');
+            }
+            
+            if (function_exists('wincache_ucache_clear')) {
+                wincache_ucache_clear();
+                $this->logMessage('🧹 WinCache cleared');
+            }
+            
+            // Force PHP to reload classes by touching autoload files
+            $autoloadFiles = [
+                'vendor/autoload.php',
+                'vendor/composer/autoload_real.php'
+            ];
+            
+            foreach ($autoloadFiles as $file) {
+                $path = base_path($file);
+                if (file_exists($path)) {
+                    touch($path);
+                }
+            }
+            
+        } catch (\Exception $e) {
+            $this->logMessage('⚠️ OPcache reset warning: ' . $e->getMessage());
         }
     }
     

@@ -1,6 +1,6 @@
 {
     "name": "XIV AI Fəqih",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "initial_version": "1.0.0",
     "release_date": "2025-10-10",
     "author": {
@@ -14,14 +14,15 @@
         "repository": "https://github.com/MAkbarov/XIV-AI-Feqih"
     },
     "changes": [
-        "CRITICAL FIX: Safe database column handling for missing source_url",
-        "FIX: AiService source_url column compatibility with fallback logic",
-        "FIX: Chat response errors due to missing database columns",
-        "IMPROVEMENT: Graceful degradation when schema migrations haven't run",
-        "NEW: Try-catch fallback system for database schema differences",
-        "UPDATE: Enhanced error handling for hosting environment differences",
-        "FIX: SystemUpdate migration tracking for new database columns",
-        "PREVIOUS: v1.0.2 automated migration and system update improvements"
+        "BREAKTHROUGH: Aggressive cache clearing for hosting environments",
+        "FIX: Real migration execution instead of just reconciliation",
+        "NEW: Direct database schema verification and column addition",
+        "IMPROVEMENT: Force OPcache/APC/WinCache reset during updates",
+        "FIX: Bootstrap and storage cache file clearing",
+        "NEW: Autoload file touching to force PHP class reload",
+        "ENHANCEMENT: Database column existence verification",
+        "CRITICAL: source_url column auto-addition if missing",
+        "PREVIOUS: v1.0.3 safe database handling improvements"
     ],
     "requirements": {
         "php": ">=8.1",
@@ -29,5 +30,5 @@
         "mysql": ">=5.7",
         "node": ">=16.0"
     },
-    "update_notes": "Critical Fix release v1.0.3: Fixed chat response errors caused by missing source_url database column. Added safe fallback logic for hosting environments where migrations haven't run yet. Enhanced compatibility with different schema states."
+    "update_notes": "Breakthrough release v1.0.4: Aggressive system optimization for hosting environments. Real migration execution, direct database schema fixing, and comprehensive cache clearing. Auto-adds missing database columns. Forces PHP/OPcache reset for immediate code updates."
 }
