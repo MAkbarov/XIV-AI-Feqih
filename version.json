@@ -1,6 +1,6 @@
 {
     "name": "XIV AI Fəqih",
-    "version": "1.0.8",
+    "version": "1.0.9",
     "initial_version": "1.0.0",
     "release_date": "2025-10-10",
     "author": {
@@ -14,6 +14,9 @@
         "repository": "https://github.com/MAkbarov/XIV-AI-Feqih"
     },
     "changes": [
+        "CRITICAL FIX: Frontend assets avtomatik deployment - npm olmayan hostinglər üçün həll",
+        "ENHANCED: SystemUpdate avtomatik olaraq prebuilt assets-ləri deploy edir",
+        "INTELLIGENT: Frontend asset verification - SystemUpdate butonu problem detection",
         "BREAKTHROUGH: SSH-free 'Fiksasiya və Bərpa' butonu əlavə edildi - sistem problemlərini web paneləndən həll edir",
         "NEW: Comprehensive system repair API - migration, cache, database schema auto-fix",
         "ENHANCED: knowledge_categories table auto-creation and structure verification",

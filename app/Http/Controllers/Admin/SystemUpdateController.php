@@ -131,6 +131,10 @@ class SystemUpdateController extends Controller
                 $this->logMessage('📂 Fayllar deploy edilir...');
                 $this->deployFiles($updatePath);
                 
+                // Step 5.5: Deploy prebuilt assets (CRITICAL for hosting without npm)
+                $this->logMessage('🎨 Frontend assets deploy edilir...');
+                $this->deployPrebuiltAssets($updatePath);
+                
                 // Step 6: Database migrations
                 $this->logMessage('🗄️ Database yenilənir...');
                 $this->runDatabaseMigrations();
@@ -549,6 +553,73 @@ class SystemUpdateController extends Controller
         }
         
         $this->logMessage("✅ Deployed {$deployedCount} components");
+    }
+    
+    /**
+     * Deploy prebuilt frontend assets for hosting environments without npm
+     * This is CRITICAL for hosting providers that don't support npm build
+     */
+    private function deployPrebuiltAssets(string $sourceDir): void
+    {
+        $assetsSource = $sourceDir . '/public/build';
+        $assetsTarget = public_path('build');
+        
+        if (!File::exists($assetsSource)) {
+            $this->logMessage('⚠️ No prebuilt assets found in update package');
+            return;
+        }
+        
+        try {
+            // CRITICAL: Clear old assets first to prevent hash conflicts
+            if (File::exists($assetsTarget)) {
+                $oldAssets = glob($assetsTarget . '/assets/*');
+                foreach ($oldAssets as $oldAsset) {
+                    if (is_file($oldAsset)) {
+                        unlink($oldAsset);
+                    }
+                }
+                $this->logMessage('🗑️ Old assets cleared');
+            }
+            
+            // Ensure target directory exists
+            File::ensureDirectoryExists($assetsTarget);
+            
+            // Copy manifest.json (CRITICAL - maps JSX to assets)
+            $manifestSource = $assetsSource . '/manifest.json';
+            $manifestTarget = $assetsTarget . '/manifest.json';
+            
+            if (File::exists($manifestSource)) {
+                File::copy($manifestSource, $manifestTarget);
+                $this->logMessage('✅ Manifest.json deployed');
+            }
+            
+            // Copy all asset files
+            $assetsSourceDir = $assetsSource . '/assets';
+            $assetsTargetDir = $assetsTarget . '/assets';
+            
+            if (File::exists($assetsSourceDir)) {
+                File::ensureDirectoryExists($assetsTargetDir);
+                File::copyDirectory($assetsSourceDir, $assetsTargetDir);
+                
+                $assetCount = count(glob($assetsTargetDir . '/*'));
+                $this->logMessage("✅ {$assetCount} frontend assets deployed");
+                
+                // Special check for SystemUpdate asset
+                $systemUpdateAssets = glob($assetsTargetDir . '/SystemUpdate*.js');
+                if (!empty($systemUpdateAssets)) {
+                    $latestAsset = basename(end($systemUpdateAssets));
+                    $this->logMessage("🔧 SystemUpdate asset: {$latestAsset}");
+                } else {
+                    $this->logMessage('⚠️ SystemUpdate asset not found - button may not work');
+                }
+            }
+            
+            $this->logMessage('✅ Prebuilt assets deployment completed');
+            
+        } catch (\Exception $e) {
+            $this->logMessage('❌ Assets deployment failed: ' . $e->getMessage());
+            // Don't throw - continue with deployment
+        }
     }
     
     private function runDatabaseMigrations(): void
@@ -1347,8 +1418,12 @@ class SystemUpdateController extends Controller
             $this->logMessage('🤖 Step 8: Verifying AiService enhancements...');
             $this->verifyAiServiceEnhancements();
             
-            // Step 9: Final cache clear and optimization
-            $this->logMessage('💫 Step 9: Final system optimization...');
+            // Step 9: Verify frontend assets
+            $this->logMessage('🎨 Step 9: Verifying frontend assets...');
+            $this->verifyFrontendAssets();
+            
+            // Step 10: Final cache clear and optimization
+            $this->logMessage('💫 Step 10: Final system optimization...');
             $this->performFinalOptimization();
             
             $this->logMessage('✅ === SYSTEM FIX & REPAIR COMPLETED SUCCESSFULLY ===');
@@ -1365,6 +1440,7 @@ class SystemUpdateController extends Controller
                     'knowledge_base table verified',
                     'Migration history reconciled',
                     'AiService enhancements verified',
+                    'Frontend assets verified',
                     'Final optimization completed'
                 ]
             ]);
@@ -1444,6 +1520,66 @@ class SystemUpdateController extends Controller
             
         } catch (\Exception $e) {
             $this->logMessage('⚠️ AiService verification error: ' . $e->getMessage());
+        }
+    }
+    
+    private function verifyFrontendAssets(): void
+    {
+        try {
+            $buildPath = public_path('build');
+            $manifestPath = public_path('build/manifest.json');
+            
+            // Check if build directory exists
+            if (!File::exists($buildPath)) {
+                $this->logMessage('❌ Frontend build directory missing');
+                return;
+            }
+            
+            // Check manifest.json
+            if (!File::exists($manifestPath)) {
+                $this->logMessage('❌ Frontend manifest.json missing');
+                return;
+            }
+            
+            // Parse manifest and check SystemUpdate asset
+            $manifest = json_decode(File::get($manifestPath), true);
+            if (!$manifest) {
+                $this->logMessage('❌ Frontend manifest.json invalid');
+                return;
+            }
+            
+            // Check SystemUpdate asset specifically
+            $systemUpdateKey = 'resources/js/Pages/Admin/SystemUpdate.jsx';
+            if (isset($manifest[$systemUpdateKey])) {
+                $assetFile = $manifest[$systemUpdateKey]['file'] ?? null;
+                if ($assetFile) {
+                    $assetPath = public_path('build/' . $assetFile);
+                    if (File::exists($assetPath)) {
+                        $this->logMessage('✅ SystemUpdate asset: ' . $assetFile);
+                        
+                        // Check if the asset contains the repair button code
+                        $assetContent = File::get($assetPath);
+                        if (str_contains($assetContent, 'Fiksasiya') || str_contains($assetContent, 'B\u0259rpa')) {
+                            $this->logMessage('✅ Repair button code found in asset');
+                        } else {
+                            $this->logMessage('⚠️ Repair button code NOT found in asset - old version?');
+                        }
+                    } else {
+                        $this->logMessage('❌ SystemUpdate asset file missing: ' . $assetFile);
+                    }
+                } else {
+                    $this->logMessage('❌ SystemUpdate asset file key missing in manifest');
+                }
+            } else {
+                $this->logMessage('❌ SystemUpdate.jsx not found in manifest');
+            }
+            
+            // Count total assets
+            $assetCount = count(glob(public_path('build/assets/*')));
+            $this->logMessage("ℹ️ Total frontend assets: {$assetCount}");
+            
+        } catch (\Exception $e) {
+            $this->logMessage('⚠️ Frontend asset verification error: ' . $e->getMessage());
         }
     }
     
