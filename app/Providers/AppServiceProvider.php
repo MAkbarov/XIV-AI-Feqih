@@ -13,7 +13,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Register EmbeddingService first (no dependencies)
+        $this->app->singleton(\App\Services\EmbeddingService::class, function ($app) {
+            return new \App\Services\EmbeddingService();
+        });
+        
+        // Register TrainingService (needs EmbeddingService, but not AiService)
+        $this->app->singleton(\App\Services\TrainingService::class, function ($app) {
+            $embeddingService = $app->make(\App\Services\EmbeddingService::class);
+            return new \App\Services\TrainingService($embeddingService, null); // AiService optional
+        });
+        
+        // Register AiService last (needs TrainingService and EmbeddingService)
+        $this->app->singleton(\App\Services\AiService::class, function ($app) {
+            $trainingService = $app->make(\App\Services\TrainingService::class);
+            $embeddingService = $app->make(\App\Services\EmbeddingService::class);
+            return new \App\Services\AiService($trainingService, $embeddingService);
+        });
     }
 
     /**

@@ -243,18 +243,24 @@ function performInstallation($data) {
             throw new Exception('Quraşdırma kilid faylı yaradıla bilmədi');
         }
         
-        // 8. Post-install fix inline (APP_KEY, cache cleanup)
+        // 8. Post-install fix inline (APP_KEY, cache cleanup, asset building)
         $postFixResult = performPostInstallFix();
+        $postFixMessage = '';
         if (!$postFixResult['success']) {
-            // Don't fail installation for post-fix issues, just log
+            // Don't fail installation for post-fix issues, just log and inform
+            $postFixMessage = 'Xəbərdarlıq: Post-install fix uğursuz (' . $postFixResult['error'] . '). Manual cache təmizləməsi lazım ola bilər.';
             error_log('Post-install fix warning: ' . $postFixResult['error']);
+        } else {
+            $postFixMessage = $postFixResult['message'] ?? 'Cache və asset düzəlişi tamamlandı.';
         }
         
         return [
             'success' => true, 
             'message' => 'Quraşdırma uğurla tamamlandı!',
             'admin_status' => $adminResult,
-            'lock_file' => $lockContent
+            'lock_file' => $lockContent,
+            'post_fix_message' => $postFixMessage,
+            'post_fix_success' => $postFixResult['success']
         ];
         
     } catch (Exception $e) {
@@ -809,14 +815,91 @@ function performPostInstallFix() {
                 throw new Exception('APP_KEY yazıla bilmədi');
             }
         }
+        
         // Ensure directories
         setDirectoryPermissions($base);
-        // Remove cached config/routes if any
-        @unlink($base . '/bootstrap/cache/config.php');
-        @unlink($base . '/bootstrap/cache/routes.php');
-        return ['success' => true];
+        
+        // 1. Clear all Laravel caches
+        clearAllCaches($base);
+        
+        // 2. Build frontend assets if npm available
+        buildFrontendAssets($base);
+        
+        return ['success' => true, 'message' => 'Post-install fix tamamlandı!'];
     } catch (Exception $e) {
         return ['success' => false, 'error' => $e->getMessage()];
+    }
+}
+
+function clearAllCaches($basePath) {
+    // Remove cached config/routes
+    @unlink($basePath . '/bootstrap/cache/config.php');
+    @unlink($basePath . '/bootstrap/cache/routes.php');
+    @unlink($basePath . '/bootstrap/cache/services.php');
+    @unlink($basePath . '/bootstrap/cache/packages.php');
+    
+    // Clear storage framework caches
+    $cacheDataPath = $basePath . '/storage/framework/cache/data';
+    if (is_dir($cacheDataPath)) {
+        array_map('unlink', glob($cacheDataPath . '/*'));
+        @rmdir($cacheDataPath);
+    }
+    
+    // Clear view cache
+    $viewCachePath = $basePath . '/storage/framework/views';
+    if (is_dir($viewCachePath)) {
+        array_map('unlink', glob($viewCachePath . '/*.php'));
+    }
+    
+    // Try Laravel artisan cache clear if php artisan available
+    @exec('cd ' . escapeshellarg($basePath) . ' && php artisan cache:clear 2>/dev/null');
+    @exec('cd ' . escapeshellarg($basePath) . ' && php artisan config:clear 2>/dev/null');
+    @exec('cd ' . escapeshellarg($basePath) . ' && php artisan route:clear 2>/dev/null');
+    @exec('cd ' . escapeshellarg($basePath) . ' && php artisan view:clear 2>/dev/null');
+}
+
+function buildFrontendAssets($basePath) {
+    // Check if node and npm are available
+    $nodeAvailable = false;
+    $npmAvailable = false;
+    
+    exec('node --version 2>/dev/null', $nodeOutput, $nodeReturn);
+    exec('npm --version 2>/dev/null', $npmOutput, $npmReturn);
+    
+    $nodeAvailable = ($nodeReturn === 0);
+    $npmAvailable = ($npmReturn === 0);
+    
+    if (!$nodeAvailable || !$npmAvailable) {
+        error_log('Warning: Node.js or npm not available for building assets');
+        return false;
+    }
+    
+    // Check if package.json exists
+    if (!file_exists($basePath . '/package.json')) {
+        error_log('Warning: package.json not found for building assets');
+        return false;
+    }
+    
+    // Check if node_modules exists, if not install dependencies
+    if (!is_dir($basePath . '/node_modules')) {
+        error_log('Installing npm dependencies...');
+        exec('cd ' . escapeshellarg($basePath) . ' && npm install 2>&1', $installOutput, $installReturn);
+        if ($installReturn !== 0) {
+            error_log('npm install failed: ' . implode("\n", $installOutput));
+            return false;
+        }
+    }
+    
+    // Build assets
+    error_log('Building frontend assets...');
+    exec('cd ' . escapeshellarg($basePath) . ' && npm run build 2>&1', $buildOutput, $buildReturn);
+    
+    if ($buildReturn === 0) {
+        error_log('Frontend assets built successfully!');
+        return true;
+    } else {
+        error_log('npm run build failed: ' . implode("\n", $buildOutput));
+        return false;
     }
 }
 
@@ -826,18 +909,137 @@ function performPostInstallFix() {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XIV AI - Quraşdırma</title>
+    <title>XIV AI - Quraşdırma Sihirbazı</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#10b981',
+                        secondary: '#065f46',
+                        accent: '#34d399'
+                    },
+                    animation: {
+                        'fade-in': 'fadeIn 0.5s ease-in-out',
+                        'slide-in': 'slideIn 0.3s ease-out',
+                        'bounce-slow': 'bounce 2s infinite',
+                        'pulse-slow': 'pulse 3s infinite',
+                        'spin-slow': 'spin 3s linear infinite'
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' }
+                        },
+                        slideIn: {
+                            '0%': { opacity: '0', transform: 'translateX(-20px)' },
+                            '100%': { opacity: '1', transform: 'translateX(0)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     <style>
         .step { display: none; }
         .step.active { display: block; }
         .requirement-ok { color: #10B981; }
         .requirement-fail { color: #EF4444; }
+        .glass-effect {
+            backdrop-filter: blur(20px);
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #f5576c 75%, #4facfe 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        .progress-glow {
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.3);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
     </style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-gray-50 via-white to-emerald-50">
-    <div class="min-h-screen flex items-center justify-center">
-        <div class="bg-white/90 backdrop-blur rounded-2xl shadow-2xl p-8 max-w-2xl w-full border border-gray-200">
+<body class="min-h-screen gradient-bg relative overflow-x-hidden">
+    <!-- Floating particles background -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+        <div class="absolute top-10 left-10 w-2 h-2 bg-white/30 rounded-full animate-bounce-slow"></div>
+        <div class="absolute top-32 right-20 w-3 h-3 bg-white/20 rounded-full animate-pulse-slow"></div>
+        <div class="absolute bottom-20 left-20 w-1 h-1 bg-white/40 rounded-full animate-bounce-slow" style="animation-delay: 1s"></div>
+        <div class="absolute bottom-32 right-10 w-2 h-2 bg-white/25 rounded-full animate-pulse-slow" style="animation-delay: 2s"></div>
+        <div class="absolute top-1/2 left-1/3 w-1 h-1 bg-white/35 rounded-full animate-bounce-slow" style="animation-delay: 0.5s"></div>
+    </div>
+    
+    <div class="min-h-screen flex items-center justify-center p-4 relative z-10">
+        <div class="glass-effect rounded-3xl shadow-2xl p-8 max-w-4xl w-full border border-white/20 card-hover" x-data="installer()">
+            <!-- Header with animated logo -->
+            <div class="text-center mb-12 animate-fade-in">
+                <div class="relative inline-block">
+                    <div class="absolute -inset-4 bg-gradient-to-r from-primary to-accent rounded-full blur opacity-30 animate-pulse-slow"></div>
+                    <div class="relative bg-gradient-to-r from-primary to-secondary p-6 rounded-full">
+                        <i class="fas fa-robot text-4xl text-white"></i>
+                    </div>
+                </div>
+                <h1 class="text-4xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mt-6 tracking-tight">XIV AI Platform</h1>
+                <p class="text-gray-600 mt-2 text-lg">Quraşdırma Sihirbazı</p>
+                <div class="mt-2 text-sm text-gray-500">
+                    <i class="fas fa-code"></i> Versiya 1.0.8 • 
+                    <i class="fas fa-user"></i> Müəllif: DeXIV
+                </div>
+                
+                <!-- Modern step progress -->
+                <div class="mt-8 relative">
+                    <div class="flex justify-center items-center space-x-4">
+                        <template x-for="step in 4" :key="step">
+                            <div class="flex items-center">
+                                <div class="relative">
+                                    <div 
+                                        :class="currentStep >= step ? 'bg-gradient-to-r from-primary to-accent progress-glow' : 'bg-gray-300'"
+                                        class="w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 transform"
+                                        :class="currentStep === step ? 'scale-110' : 'scale-100'"
+                                    >
+                                        <span 
+                                            :class="currentStep >= step ? 'text-white' : 'text-gray-600'"
+                                            class="text-sm font-bold"
+                                            x-text="step"
+                                        ></span>
+                                    </div>
+                                    <div 
+                                        x-show="currentStep === step"
+                                        class="absolute -inset-2 border-2 border-primary rounded-full animate-ping"
+                                    ></div>
+                                </div>
+                                <div 
+                                    x-show="step < 4"
+                                    :class="currentStep > step ? 'bg-gradient-to-r from-primary to-accent' : 'bg-gray-300'"
+                                    class="w-16 h-1 mx-2 transition-all duration-500"
+                                ></div>
+                            </div>
+                        </template>
+                    </div>
+                    <div class="flex justify-between mt-3 text-xs text-gray-600 px-2">
+                        <span>Tələblər</span>
+                        <span>Database</span>
+                        <span>Admin</span>
+                        <span>Quraşdırma</span>
+                    </div>
+                </div>
+            </div>
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-gray-800 tracking-tight">XIV AI</h1>
                 <p class="text-gray-600 mt-1">Quraşdırma sihirbazı • Versiya 1.0 • Müəllif: DeXIV</p>
@@ -850,324 +1052,761 @@ function performPostInstallFix() {
             </div>
 
             <!-- Step 1: Requirements Check -->
-            <div id="step-1" class="step active">
-                <h2 class="text-xl font-semibold mb-4">1. Sistem Tələbləri</h2>
-                <div id="requirements-list">
-                    <p class="text-gray-600">Sistem tələbləri yoxlanılır...</p>
+            <div id="step-1" class="step active animate-fade-in">
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100">
+                    <div class="flex items-center mb-6">
+                        <div class="bg-gradient-to-r from-blue-500 to-indigo-600 p-3 rounded-xl">
+                            <i class="fas fa-clipboard-check text-white text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-2xl font-bold text-gray-800">Sistem Tələbləri</h2>
+                            <p class="text-gray-600">Serverinizin uyumlu olduğunu yoxlayırıq</p>
+                        </div>
+                    </div>
+                    
+                    <div id="requirements-list" class="space-y-3">
+                        <div class="flex items-center justify-center py-8">
+                            <div class="text-center">
+                                <div class="animate-spin-slow inline-block">
+                                    <i class="fas fa-cog text-3xl text-blue-500"></i>
+                                </div>
+                                <p class="text-gray-600 mt-3">Sistem tələbləri yoxlanılır...</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button 
+                        id="check-requirements" 
+                        class="mt-6 w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    >
+                        <i class="fas fa-search mr-2"></i>
+                        Tələbləri Yoxla
+                    </button>
                 </div>
-                <button id="check-requirements" class="mt-6 w-full bg-emerald-600 hover:bg-emerald-700 transition-all duration-200 text-white py-2.5 rounded-xl shadow">
-                    Tələbləri Yoxla
-                </button>
             </div>
 
             <!-- Step 2: Database Configuration -->
-            <div id="step-2" class="step">
-                <h2 class="text-xl font-semibold mb-4">2. Verilənlər Bazası</h2>
-                <form id="db-form" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Host</label>
-                        <input type="text" name="db_host" value="localhost" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
+            <div id="step-2" class="step animate-fade-in">
+                <div class="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-2xl p-6 border border-emerald-100">
+                    <div class="flex items-center mb-6">
+                        <div class="bg-gradient-to-r from-emerald-500 to-teal-600 p-3 rounded-xl">
+                            <i class="fas fa-database text-white text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-2xl font-bold text-gray-800">Verilənlər Bazası</h2>
+                            <p class="text-gray-600">Database əlaqə parametrlərini daxil edin</p>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Port</label>
-                        <input type="text" name="db_port" value="3306" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Verilənlər Bazası Adı</label>
-                        <input type="text" name="db_database" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">İstifadəçi Adı</label>
-                        <input type="text" name="db_username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Şifrə</label>
-                        <input type="password" name="db_password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
-                    <button type="button" id="test-db" class="w-full bg-emerald-600 hover:bg-emerald-700 transition-all duration-200 text-white py-2.5 rounded-xl shadow">
-                        Bağlantını Test Et
-                    </button>
-                </form>
-                <div id="db-result" class="mt-4"></div>
+                    
+                    <form id="db-form" class="space-y-6">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-2">
+                                <label class="flex items-center text-sm font-semibold text-gray-700">
+                                    <i class="fas fa-server mr-2 text-emerald-500"></i>
+                                    Host
+                                </label>
+                                <input 
+                                    type="text" 
+                                    name="db_host" 
+                                    value="localhost" 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-white/80"
+                                    placeholder="localhost"
+                                    required
+                                >
+                            </div>
+                            <div class="space-y-2">
+                                <label class="flex items-center text-sm font-semibold text-gray-700">
+                                    <i class="fas fa-plug mr-2 text-emerald-500"></i>
+                                    Port
+                                </label>
+                                <input 
+                                    type="text" 
+                                    name="db_port" 
+                                    value="3306" 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-white/80"
+                                    placeholder="3306"
+                                    required
+                                >
+                            </div>
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <label class="flex items-center text-sm font-semibold text-gray-700">
+                                <i class="fas fa-hdd mr-2 text-emerald-500"></i>
+                                Verilənlər Bazası Adı
+                            </label>
+                            <input 
+                                type="text" 
+                                name="db_database" 
+                                class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-white/80"
+                                placeholder="xiv_ai_db"
+                                required
+                            >
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="space-y-2">
+                                <label class="flex items-center text-sm font-semibold text-gray-700">
+                                    <i class="fas fa-user mr-2 text-emerald-500"></i>
+                                    İstifadəçi Adı
+                                </label>
+                                <input 
+                                    type="text" 
+                                    name="db_username" 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-white/80"
+                                    placeholder="root"
+                                    required
+                                >
+                            </div>
+                            <div class="space-y-2">
+                                <label class="flex items-center text-sm font-semibold text-gray-700">
+                                    <i class="fas fa-lock mr-2 text-emerald-500"></i>
+                                    Şifrə
+                                </label>
+                                <input 
+                                    type="password" 
+                                    name="db_password" 
+                                    class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200 bg-white/80"
+                                    placeholder="Şifrə (boş buraxıla bilər)"
+                                >
+                            </div>
+                        </div>
+                        
+                        <button 
+                            type="button" 
+                            id="test-db" 
+                            class="w-full bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-semibold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                        >
+                            <i class="fas fa-wifi mr-2"></i>
+                            Bağlantını Test Et
+                        </button>
+                    </form>
+                    
+                    <div id="db-result" class="mt-6"></div>
+                </div>
             </div>
 
             <!-- Step 3: Admin User & Site Settings -->
-            <div id="step-3" class="step">
-                <h2 class="text-xl font-semibold mb-4">3. Admin və Sayt Parametrləri</h2>
-                <form id="admin-form" class="space-y-4">
-                    <h3 class="text-lg font-medium">Sayt Məlumatları</h3>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Sayt Adı</label>
-                        <input type="text" name="app_name" value="XIV AI" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
+            <div id="step-3" class="step animate-fade-in">
+                <div class="bg-gradient-to-r from-purple-50 to-pink-50 rounded-2xl p-6 border border-purple-100">
+                    <div class="flex items-center mb-6">
+                        <div class="bg-gradient-to-r from-purple-500 to-pink-600 p-3 rounded-xl">
+                            <i class="fas fa-user-cog text-white text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-2xl font-bold text-gray-800">Admin və Sayt Parametrləri</h2>
+                            <p class="text-gray-600">Platformanız üçün əsas parametrləri təyin edin</p>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Sayt URL</label>
-                        <input type="url" name="app_url" id="app_url" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
-                    </div>
-                    
-                    <h3 class="text-lg font-medium mt-6">Admin İstifadəçi</h3>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Admin Adı</label>
-                        <input type="text" name="admin_name" value="Admin" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Admin Email</label>
-                        <input type="email" name="admin_email" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Admin Şifrə</label>
-                        <input type="password" name="admin_password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" required>
-                    </div>
-                    
-                    <h3 class="text-lg font-medium mt-6">E-poçt Parametrləri (İstəyə bağlı)</h3>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">SMTP Host</label>
-                        <input type="text" name="mail_host" value="smtp.gmail.com" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">SMTP Port</label>
-                        <input type="text" name="mail_port" value="587" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Email İstifadəçi</label>
-                        <input type="email" name="mail_username" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Email Şifrə</label>
-                        <input type="password" name="mail_password" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    </div>
-                </form>
+                    <form id="admin-form" class="space-y-8">
+                        <!-- Site Information -->
+                        <div class="bg-white/60 rounded-xl p-6 border border-white/40">
+                            <h3 class="flex items-center text-lg font-bold text-gray-800 mb-4">
+                                <i class="fas fa-globe mr-3 text-purple-500"></i>
+                                Sayt Məlumatları
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-2">
+                                    <label class="flex items-center text-sm font-semibold text-gray-700">
+                                        <i class="fas fa-tag mr-2 text-purple-500"></i>
+                                        Sayt Adı
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        name="app_name" 
+                                        value="XIV AI" 
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white/80"
+                                        required
+                                    >
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="flex items-center text-sm font-semibold text-gray-700">
+                                        <i class="fas fa-link mr-2 text-purple-500"></i>
+                                        Sayt URL
+                                    </label>
+                                    <input 
+                                        type="url" 
+                                        name="app_url" 
+                                        id="app_url" 
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white/80"
+                                        required
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Admin User -->
+                        <div class="bg-white/60 rounded-xl p-6 border border-white/40">
+                            <h3 class="flex items-center text-lg font-bold text-gray-800 mb-4">
+                                <i class="fas fa-user-shield mr-3 text-purple-500"></i>
+                                Admin İstifadəçi
+                            </h3>
+                            <div class="space-y-6">
+                                <div class="space-y-2">
+                                    <label class="flex items-center text-sm font-semibold text-gray-700">
+                                        <i class="fas fa-id-badge mr-2 text-purple-500"></i>
+                                        Admin Adı
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        name="admin_name" 
+                                        value="Admin" 
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white/80"
+                                        required
+                                    >
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div class="space-y-2">
+                                        <label class="flex items-center text-sm font-semibold text-gray-700">
+                                            <i class="fas fa-envelope mr-2 text-purple-500"></i>
+                                            Admin Email
+                                        </label>
+                                        <input 
+                                            type="email" 
+                                            name="admin_email" 
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white/80"
+                                            placeholder="admin@example.com"
+                                            required
+                                        >
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label class="flex items-center text-sm font-semibold text-gray-700">
+                                            <i class="fas fa-key mr-2 text-purple-500"></i>
+                                            Admin Şifrə
+                                        </label>
+                                        <input 
+                                            type="password" 
+                                            name="admin_password" 
+                                            class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white/80"
+                                            placeholder="Güvənli şifrə"
+                                            required
+                                        >
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Email Settings -->
+                        <div class="bg-white/60 rounded-xl p-6 border border-white/40">
+                            <h3 class="flex items-center text-lg font-bold text-gray-800 mb-2">
+                                <i class="fas fa-mail-bulk mr-3 text-purple-500"></i>
+                                E-poçt Parametrləri
+                                <span class="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">İstəyə bağlı</span>
+                            </h3>
+                            <p class="text-sm text-gray-600 mb-4">Bu parametrlər sonradan da dəyişilə bilər</p>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-2">
+                                    <label class="flex items-center text-sm font-semibold text-gray-700">
+                                        <i class="fas fa-server mr-2 text-purple-500"></i>
+                                        SMTP Host
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        name="mail_host" 
+                                        value="smtp.gmail.com" 
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white/80"
+                                        placeholder="smtp.gmail.com"
+                                    >
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="flex items-center text-sm font-semibold text-gray-700">
+                                        <i class="fas fa-plug mr-2 text-purple-500"></i>
+                                        SMTP Port
+                                    </label>
+                                    <input 
+                                        type="text" 
+                                        name="mail_port" 
+                                        value="587" 
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white/80"
+                                        placeholder="587"
+                                    >
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="flex items-center text-sm font-semibold text-gray-700">
+                                        <i class="fas fa-at mr-2 text-purple-500"></i>
+                                        Email İstifadəçi
+                                    </label>
+                                    <input 
+                                        type="email" 
+                                        name="mail_username" 
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white/80"
+                                        placeholder="email@gmail.com"
+                                    >
+                                </div>
+                                <div class="space-y-2">
+                                    <label class="flex items-center text-sm font-semibold text-gray-700">
+                                        <i class="fas fa-unlock-alt mr-2 text-purple-500"></i>
+                                        Email Şifrə
+                                    </label>
+                                    <input 
+                                        type="password" 
+                                        name="mail_password" 
+                                        class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all duration-200 bg-white/80"
+                                        placeholder="App password"
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
             </div>
 
             <!-- Step 4: Installation -->
-            <div id="step-4" class="step">
-                <h2 class="text-xl font-semibold mb-4">4. Quraşdırma</h2>
-                <div id="install-progress">
-                    <div class="bg-gray-200 rounded-full h-2 mb-4">
-                        <div id="progress-bar" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+            <div id="step-4" class="step animate-fade-in">
+                <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-2xl p-6 border border-green-100">
+                    <div class="flex items-center mb-6">
+                        <div class="bg-gradient-to-r from-green-500 to-emerald-600 p-3 rounded-xl">
+                            <i class="fas fa-rocket text-white text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <h2 class="text-2xl font-bold text-gray-800">Quraşdırma</h2>
+                            <p class="text-gray-600">XIV AI platformanızı qurur və optimallaşdırırıq</p>
+                        </div>
                     </div>
-                    <div id="install-status">Quraşdırma başlamaq üçün hazırdır...</div>
+                    
+                    <div id="install-progress" class="bg-white/60 rounded-xl p-6 border border-white/40">
+                        <!-- Modern Progress Bar -->
+                        <div class="relative">
+                            <div class="bg-gray-200 rounded-full h-3 mb-4 overflow-hidden">
+                                <div 
+                                    id="progress-bar" 
+                                    class="bg-gradient-to-r from-green-400 to-emerald-500 h-3 rounded-full transition-all duration-1000 ease-out progress-glow relative overflow-hidden" 
+                                    style="width: 0%"
+                                >
+                                    <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-pulse"></div>
+                                </div>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-600 mb-6">
+                                <span>Başlangıc</span>
+                                <span>Database</span>
+                                <span>Assets</span>
+                                <span>Bitdi</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Status Display -->
+                        <div class="text-center">
+                            <div id="install-status-icon" class="text-4xl mb-3">
+                                <i class="fas fa-hourglass-start text-blue-500 animate-pulse"></i>
+                            </div>
+                            <div id="install-status" class="text-gray-700 font-medium text-lg">
+                                Quraşdırma başlamaq üçün hazırdır...
+                            </div>
+                            <div id="install-substatus" class="text-sm text-gray-500 mt-2"></div>
+                        </div>
+                    </div>
+                    
+                    <button 
+                        id="start-install" 
+                        class="mt-6 w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold py-4 px-6 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 hover:scale-105"
+                    >
+                        <i class="fas fa-play mr-2"></i>
+                        Quraşdırmanı Başlat
+                    </button>
+                    
+                    <div id="install-result" class="mt-6"></div>
                 </div>
-                <button id="start-install" class="mt-6 w-full bg-emerald-600 hover:bg-emerald-700 transition-all duration-200 text-white py-2.5 rounded-xl shadow">
-                    Quraşdırmanı Başlat
-                </button>
-                <div id="install-result" class="mt-4"></div>
             </div>
 
             <!-- Navigation buttons -->
-            <div class="flex justify-between mt-8">
-                <button id="prev-btn" class="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400" style="display: none;">
+            <div class="flex justify-between items-center mt-12">
+                <button 
+                    id="prev-btn" 
+                    class="flex items-center px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-xl transition-all duration-200 transform hover:-translate-y-1" 
+                    style="display: none;"
+                >
+                    <i class="fas fa-chevron-left mr-2"></i>
                     Əvvəlki
                 </button>
-                <button id="next-btn" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600" style="display: none;">
+                
+                <div class="flex items-center space-x-2 text-sm text-gray-500">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Təhlükəsiz quraşdırma</span>
+                </div>
+                
+                <button 
+                    id="next-btn" 
+                    class="flex items-center px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-medium rounded-xl transition-all duration-200 transform hover:-translate-y-1" 
+                    style="display: none;"
+                >
                     Növbəti
+                    <i class="fas fa-chevron-right ml-2"></i>
                 </button>
             </div>
         </div>
     </div>
 
     <script>
-        let currentStep = 1;
-        let maxStep = 1;
-        let requirementsPassed = false;
-        let dbTested = false;
-
-        // Set app URL automatically
-        document.getElementById('app_url').value = window.location.origin.replace('/install', '');
-
-        function showStep(step) {
-            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
-            document.getElementById(`step-${step}`).classList.add('active');
-            
-            // Update indicators
-            document.querySelectorAll('[id^="step-indicator-"]').forEach((el, index) => {
-                if (index + 1 <= step) {
-                    el.className = 'w-3 h-3 bg-blue-500 rounded-full';
-                } else {
-                    el.className = 'w-3 h-3 bg-gray-300 rounded-full';
-                }
-            });
-
-            // Show/hide navigation buttons
-            const prevBtn = document.getElementById('prev-btn');
-            const nextBtn = document.getElementById('next-btn');
-            
-            prevBtn.style.display = step > 1 ? 'block' : 'none';
-            nextBtn.style.display = step < 4 && step <= maxStep ? 'block' : 'none';
-        }
-
-        // Check requirements
-        document.getElementById('check-requirements').addEventListener('click', async () => {
-            const response = await fetch('setup.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: 'action=check_requirements'
-            });
-            const result = await response.json();
-            
-            let html = '<ul class="space-y-2">';
-            const requirements = {
-                'php_version': 'PHP 8.1+',
-                'openssl': 'OpenSSL Extension',
-                'pdo': 'PDO Extension',
-                'pdo_mysql': 'PDO MySQL Extension',
-                'mbstring': 'Mbstring Extension',
-                'tokenizer': 'Tokenizer Extension',
-                'xml': 'XML Extension',
-                'ctype': 'Ctype Extension',
-                'json': 'JSON Extension',
-                'curl': 'cURL Extension',
-                'storage_writable': 'Storage Writable',
-                'bootstrap_writable': 'Bootstrap Cache Writable',
-                'env_writable': 'Environment Writable'
-            };
-            
-            for (const [key, label] of Object.entries(requirements)) {
-                const status = result.requirements[key];
-                html += `<li class="flex items-center ${status ? 'requirement-ok' : 'requirement-fail'}">
-                    <span class="mr-2">${status ? '✓' : '✗'}</span> ${label}
-                </li>`;
-            }
-            html += '</ul>';
-            
-            document.getElementById('requirements-list').innerHTML = html;
-            
-            if (result.success) {
-                requirementsPassed = true;
-                maxStep = 2;
-                setTimeout(() => {
-                    currentStep = 2;
-                    showStep(2);
-                }, 1500);
-            }
-        });
-
-        // Test database connection
-        document.getElementById('test-db').addEventListener('click', async () => {
-            const formData = new FormData(document.getElementById('db-form'));
-            formData.append('action', 'test_database');
-            
-            const response = await fetch('setup.php', {
-                method: 'POST',
-                body: formData
-            });
-            const result = await response.json();
-            
-            const resultDiv = document.getElementById('db-result');
-            if (result.success) {
-                resultDiv.innerHTML = '<div class="p-3 bg-green-100 text-green-700 rounded">✓ Verilənlər bazası bağlantısı uğurludur!</div>';
-                dbTested = true;
-                // Enable proceeding to Step 4 (Installation)
-                maxStep = 4;
-                setTimeout(() => {
-                    currentStep = 3;
-                    showStep(3);
-                }, 1500);
-            } else {
-                resultDiv.innerHTML = `<div class=\"p-3 bg-red-100 text-red-700 rounded\">✗ Xəta: ${result.error}</div>`;
-            }
-        });
-
-        // Start installation
-        document.getElementById('start-install').addEventListener('click', async () => {
-            document.getElementById('start-install').disabled = true;
-            document.getElementById('install-status').textContent = 'Quraşdırma başladı...';
-            
-            const dbFormData = new FormData(document.getElementById('db-form'));
-            const adminFormData = new FormData(document.getElementById('admin-form'));
-            
-            const installData = new FormData();
-            installData.append('action', 'install');
-            
-            // Merge all form data
-            for (const [key, value] of dbFormData) {
-                installData.append(key, value);
-            }
-            for (const [key, value] of adminFormData) {
-                installData.append(key, value);
-            }
-            
-            const response = await fetch('setup.php', {
-                method: 'POST',
-                body: installData
-            });
-            const result = await response.json();
-            
-            const progressBar = document.getElementById('progress-bar');
-            const statusDiv = document.getElementById('install-status');
-            const resultDiv = document.getElementById('install-result');
-            
-            if (result.success) {
-                progressBar.style.width = '100%';
-                statusDiv.textContent = 'Quraşdırma tamamlandı!';
-                resultDiv.innerHTML = `
-                    <div class="p-4 bg-green-100 text-green-700 rounded">
-                        <h3 class="font-semibold">🎉 Uğurla quraşdırıldı!</h3>
-                        <p class="mt-2">XIV AI platformanız hazırdır. İndi admin panelə daxil ola bilərsiniz.</p>
-                        <div class="flex flex-wrap gap-2 mt-4">
-                          <a href="../" class="inline-block px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">Sayta keç</a>
-                          <button id="run-post-fix" class="inline-block px-4 py-2 bg-emerald-500 text-white rounded hover:bg-emerald-600">Yekun düzəliş (Post-Install Fix)</button>
-                        </div>
-                        <div id="post-fix-status" class="text-xs text-gray-600 mt-2"></div>
-                    </div>
-                `;
+        function installer() {
+            return {
+                currentStep: 1,
+                maxStep: 1,
+                requirementsPassed: false,
+                dbTested: false,
+                isInstalling: false,
                 
-                // Delete install directory after successful installation (istəyə bağlı gecikdirilə bilər)
-                setTimeout(() => {
-                    fetch('cleanup.php', { method: 'POST' });
-                }, 2000);
-            } else {
-                statusDiv.textContent = 'Quraşdırma xətası!';
-                resultDiv.innerHTML = `<div class="p-3 bg-red-100 text-red-700 rounded">Xəta: ${result.error}</div>`;
-                document.getElementById('start-install').disabled = false;
-            }
+                init() {
+                    // Set app URL automatically
+                    document.getElementById('app_url').value = window.location.origin.replace('/install', '');
+                    this.showStep(this.currentStep);
+                },
+
+                showStep(step) {
+                    document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+                    document.getElementById(`step-${step}`).classList.add('active');
+                    
+                    // Show/hide navigation buttons
+                    const prevBtn = document.getElementById('prev-btn');
+                    const nextBtn = document.getElementById('next-btn');
+                    
+                    prevBtn.style.display = step > 1 ? 'flex' : 'none';
+                    nextBtn.style.display = step < 4 && step <= this.maxStep ? 'flex' : 'none';
+                    
+                    this.currentStep = step;
+                },
+                
+                async checkRequirements() {
+                    const button = document.getElementById('check-requirements');
+                    const icon = button.querySelector('i');
+                    
+                    // Disable button and show loading
+                    button.disabled = true;
+                    button.innerHTML = '<i class="fas fa-spinner animate-spin mr-2"></i> Yoxlanılır...';
+                    
+                    try {
+                        const response = await fetch('setup.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: 'action=check_requirements'
+                        });
+                        const result = await response.json();
+                        
+                        let html = '<div class="space-y-3">';
+                        const requirements = {
+                            'php_version': 'PHP 8.1+',
+                            'openssl': 'OpenSSL Extension',
+                            'pdo': 'PDO Extension',
+                            'pdo_mysql': 'PDO MySQL Extension',
+                            'mbstring': 'Mbstring Extension',
+                            'tokenizer': 'Tokenizer Extension',
+                            'xml': 'XML Extension',
+                            'ctype': 'Ctype Extension',
+                            'json': 'JSON Extension',
+                            'curl': 'cURL Extension',
+                            'storage_writable': 'Storage Yazıla bilər',
+                            'bootstrap_writable': 'Bootstrap Cache Yazıla bilər',
+                            'env_writable': 'Environment Yazıla bilər'
+                        };
+                        
+                        for (const [key, label] of Object.entries(requirements)) {
+                            const status = result.requirements[key];
+                            const statusClass = status ? 'bg-green-100 border-green-200 text-green-800' : 'bg-red-100 border-red-200 text-red-800';
+                            const icon = status ? 'fa-check-circle text-green-600' : 'fa-times-circle text-red-600';
+                            
+                            html += `
+                                <div class="flex items-center justify-between p-3 rounded-xl border ${statusClass} animate-slide-in">
+                                    <div class="flex items-center">
+                                        <i class="fas ${icon} mr-3"></i>
+                                        <span class="font-medium">${label}</span>
+                                    </div>
+                                    <span class="text-sm font-bold">${status ? 'OK' : 'Xəta'}</span>
+                                </div>
+                            `;
+                        }
+                        html += '</div>';
+                        
+                        document.getElementById('requirements-list').innerHTML = html;
+                        
+                        if (result.success) {
+                            this.requirementsPassed = true;
+                            this.maxStep = 2;
+                            button.innerHTML = '<i class="fas fa-check mr-2"></i> Tələblər Qarşılandı!';
+                            button.className = button.className.replace('from-blue-500 to-indigo-600', 'from-green-500 to-emerald-600');
+                            
+                            setTimeout(() => {
+                                this.showStep(2);
+                            }, 1500);
+                        } else {
+                            button.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i> Bəzi Tələblər Qarşılanmadı';
+                            button.className = button.className.replace('from-blue-500 to-indigo-600', 'from-red-500 to-red-600');
+                            button.disabled = false;
+                        }
+                    } catch (error) {
+                        button.innerHTML = '<i class="fas fa-exclamation-triangle mr-2"></i> Yoxlama Xətası';
+                        button.disabled = false;
+                    }
+                },
+
+                async testDatabase() {
+                    const button = document.getElementById('test-db');
+                    const resultDiv = document.getElementById('db-result');
+                    
+                    button.disabled = true;
+                    button.innerHTML = '<i class="fas fa-spinner animate-spin mr-2"></i> Test edilir...';
+                    
+                    const formData = new FormData(document.getElementById('db-form'));
+                    formData.append('action', 'test_database');
+                    
+                    try {
+                        const response = await fetch('setup.php', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const result = await response.json();
+                        
+                        if (result.success) {
+                            resultDiv.innerHTML = `
+                                <div class="bg-green-100 border border-green-200 rounded-xl p-4 animate-fade-in">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-check-circle text-green-600 mr-3 text-xl"></i>
+                                        <div>
+                                            <h4 class="font-semibold text-green-800">Bağlantı Uğurlu!</h4>
+                                            <p class="text-green-700 text-sm">Verilənlər bazasına uğurla bağlanıldı.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            this.dbTested = true;
+                            this.maxStep = 4;
+                            button.innerHTML = '<i class="fas fa-check mr-2"></i> Bağlantı Uğurlu!';
+                            button.className = button.className.replace('from-emerald-500 to-teal-600', 'from-green-500 to-emerald-600');
+                            
+                            setTimeout(() => {
+                                this.showStep(3);
+                            }, 1500);
+                        } else {
+                            resultDiv.innerHTML = `
+                                <div class="bg-red-100 border border-red-200 rounded-xl p-4 animate-fade-in">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-times-circle text-red-600 mr-3 text-xl"></i>
+                                        <div>
+                                            <h4 class="font-semibold text-red-800">Bağlantı Xətası!</h4>
+                                            <p class="text-red-700 text-sm">${result.error}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            button.innerHTML = '<i class="fas fa-wifi mr-2"></i> Yenidən Test Et';
+                            button.disabled = false;
+                        }
+                    } catch (error) {
+                        resultDiv.innerHTML = `
+                            <div class="bg-red-100 border border-red-200 rounded-xl p-4">
+                                <div class="flex items-center">
+                                    <i class="fas fa-exclamation-triangle text-red-600 mr-3 text-xl"></i>
+                                    <div>
+                                        <h4 class="font-semibold text-red-800">Xəta!</h4>
+                                        <p class="text-red-700 text-sm">${error.message}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        button.innerHTML = '<i class="fas fa-wifi mr-2"></i> Bağlantını Test Et';
+                        button.disabled = false;
+                    }
+                },
+
+                async startInstallation() {
+                    if (this.isInstalling) return;
+                    
+                    this.isInstalling = true;
+                    const button = document.getElementById('start-install');
+                    const progressBar = document.getElementById('progress-bar');
+                    const statusDiv = document.getElementById('install-status');
+                    const statusIcon = document.getElementById('install-status-icon');
+                    const substatus = document.getElementById('install-substatus');
+                    const resultDiv = document.getElementById('install-result');
+                    
+                    button.disabled = true;
+                    button.innerHTML = '<i class="fas fa-spinner animate-spin mr-2"></i> Quraşdırılır...';
+                    
+                    // Progress stages
+                    const stages = [
+                        { percent: 10, status: 'Təyinatlara başlanılır...', icon: 'fa-cogs', substatus: '.env faylı yaradılır' },
+                        { percent: 30, status: 'Database hazırlanır...', icon: 'fa-database', substatus: 'Cədvəllər yaradılır və migration-lar işə salınır' },
+                        { percent: 60, status: 'Admin istifadəçi yaradılır...', icon: 'fa-user-plus', substatus: 'Admin hesabı və müəssə parametrləri təyin edilir' },
+                        { percent: 80, status: 'Cache təmizlənir...', icon: 'fa-broom', substatus: 'Laravel cache və frontend asset-lər hazırlanır' },
+                        { percent: 100, status: 'Əla! XIV AI hazırdır!', icon: 'fa-check-circle', substatus: 'Bütün sistemlər işlək vəziyyətdədir' }
+                    ];
+                    
+                    // Simulate progress with real backend call
+                    let currentStage = 0;
+                    const progressInterval = setInterval(() => {
+                        if (currentStage < stages.length - 1) {
+                            const stage = stages[currentStage];
+                            progressBar.style.width = stage.percent + '%';
+                            statusDiv.textContent = stage.status;
+                            substatus.textContent = stage.substatus;
+                            statusIcon.innerHTML = `<i class="fas ${stage.icon} text-blue-500 animate-pulse"></i>`;
+                            currentStage++;
+                        }
+                    }, 800);
+                    
+                    try {
+                        const dbFormData = new FormData(document.getElementById('db-form'));
+                        const adminFormData = new FormData(document.getElementById('admin-form'));
+                        
+                        const installData = new FormData();
+                        installData.append('action', 'install');
+                        
+                        // Merge all form data
+                        for (const [key, value] of dbFormData) {
+                            installData.append(key, value);
+                        }
+                        for (const [key, value] of adminFormData) {
+                            installData.append(key, value);
+                        }
+                        
+                        const response = await fetch('setup.php', {
+                            method: 'POST',
+                            body: installData
+                        });
+                        const result = await response.json();
+                        
+                        clearInterval(progressInterval);
+                        
+                        if (result.success) {
+                            // Complete progress
+                            const finalStage = stages[stages.length - 1];
+                            progressBar.style.width = '100%';
+                            statusDiv.textContent = finalStage.status;
+                            substatus.textContent = finalStage.substatus;
+                            statusIcon.innerHTML = `<i class="fas ${finalStage.icon} text-green-500 animate-bounce"></i>`;
+                            
+                            // Show success message
+                            const postFixStatusClass = result.post_fix_success ? 'border-green-500 bg-green-50' : 'border-yellow-500 bg-yellow-50';
+                            const postFixIcon = result.post_fix_success ? '✅' : '⚠️';
+                            const postFixTextClass = result.post_fix_success ? 'text-green-700' : 'text-yellow-700';
+                            
+                            resultDiv.innerHTML = `
+                                <div class="bg-gradient-to-r from-green-100 to-emerald-100 border border-green-200 rounded-2xl p-6 animate-fade-in">
+                                    <div class="text-center mb-6">
+                                        <div class="text-6xl mb-4 animate-bounce">🎉</div>
+                                        <h3 class="text-2xl font-bold text-gray-800 mb-2">Uğurla Quraşdırıldı!</h3>
+                                        <p class="text-gray-600">XIV AI platformanız hazırdır və istifadəyə amədədir.</p>
+                                    </div>
+                                    
+                                    <div class="border-l-4 ${postFixStatusClass} p-4 mb-6 rounded-r-xl">
+                                        <div class="${postFixTextClass} text-sm flex items-center">
+                                            <span class="text-xl mr-2">${postFixIcon}</span>
+                                            <div>
+                                                <strong>Post-Install Status:</strong><br>
+                                                ${result.post_fix_message || 'Cache və asset düzəlişi icra edildi'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <a 
+                                            href="../" 
+                                            class="flex items-center justify-center px-6 py-4 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                                        >
+                                            <i class="fas fa-home mr-2"></i>
+                                            Sayta Keç
+                                        </a>
+                                        ${
+                                            !result.post_fix_success ? 
+                                            '<button onclick="installer().runPostFix()" class="flex items-center justify-center px-6 py-4 bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"><i class="fas fa-tools mr-2"></i>Cache Düzəlişini Yenidən Cəhd Et</button>' :
+                                            '<button class="flex items-center justify-center px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-xl shadow-lg opacity-75 cursor-not-allowed" disabled><i class="fas fa-check-circle mr-2"></i>Hər şey Hazırdır!</button>'
+                                        }
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            statusDiv.textContent = 'Quraşdırma xətası!';
+                            substatus.textContent = result.error || 'Naməlum xəta baş verdi';
+                            statusIcon.innerHTML = '<i class="fas fa-times-circle text-red-500"></i>';
+                            
+                            resultDiv.innerHTML = `
+                                <div class="bg-red-100 border border-red-200 rounded-xl p-4 animate-fade-in">
+                                    <div class="flex items-center">
+                                        <i class="fas fa-exclamation-triangle text-red-600 mr-3 text-xl"></i>
+                                        <div>
+                                            <h4 class="font-semibold text-red-800">Quraşdırma Xətası!</h4>
+                                            <p class="text-red-700 text-sm">${result.error}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                            
+                            button.disabled = false;
+                            button.innerHTML = '<i class="fas fa-redo mr-2"></i> Yenidən Cəhd Et';
+                        }
+                    } catch (error) {
+                        clearInterval(progressInterval);
+                        statusDiv.textContent = 'Bağlantı xətası!';
+                        substatus.textContent = error.message;
+                        statusIcon.innerHTML = '<i class="fas fa-wifi text-red-500"></i>';
+                        
+                        resultDiv.innerHTML = `
+                            <div class="bg-red-100 border border-red-200 rounded-xl p-4">
+                                <div class="flex items-center">
+                                    <i class="fas fa-wifi text-red-600 mr-3 text-xl"></i>
+                                    <div>
+                                        <h4 class="font-semibold text-red-800">Bağlantı Xətası!</h4>
+                                        <p class="text-red-700 text-sm">${error.message}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        button.disabled = false;
+                        button.innerHTML = '<i class="fas fa-play mr-2"></i> Quraşdırmanı Başlat';
+                    }
+                    
+                    this.isInstalling = false;
+                },
+                
+                nextStep() {
+                    if (this.currentStep === 3 && this.dbTested) {
+                        this.maxStep = Math.max(this.maxStep, 4);
+                    }
+                    if (this.currentStep < 4 && this.currentStep < this.maxStep) {
+                        this.showStep(this.currentStep + 1);
+                    }
+                },
+                
+                prevStep() {
+                    if (this.currentStep > 1) {
+                        this.showStep(this.currentStep - 1);
+                    }
+                }
+            };
+        }
+        
+        // Global functions for event handlers
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check requirements button
+            document.getElementById('check-requirements').addEventListener('click', () => {
+                window.installerInstance.checkRequirements();
+            });
+            
+            // Test database button
+            document.getElementById('test-db').addEventListener('click', () => {
+                window.installerInstance.testDatabase();
+            });
+            
+            // Start installation button
+            document.getElementById('start-install').addEventListener('click', () => {
+                window.installerInstance.startInstallation();
+            });
+            
+            // Navigation buttons
+            document.getElementById('prev-btn').addEventListener('click', () => {
+                window.installerInstance.prevStep();
+            });
+            
+            document.getElementById('next-btn').addEventListener('click', () => {
+                window.installerInstance.nextStep();
+            });
         });
 
-        // Run Post-Install Fix
-        document.addEventListener('click', async (e) => {
-          if (e.target && e.target.id === 'run-post-fix') {
-            const statusDiv = document.getElementById('post-fix-status');
-            statusDiv.textContent = 'İcra edilir...';
-            const formData = new FormData();
-            formData.append('action', 'post_install_fix');
-            try {
-              const response = await fetch('setup.php', { method: 'POST', body: formData });
-              const result = await response.json();
-              if (result.success) {
-                statusDiv.textContent = 'Tamamlandı! Installer qovluğu silinir...';
-                // Try to cleanup installer
-                try { await fetch('cleanup.php', { method: 'POST' }); } catch (e) {}
-                setTimeout(() => { window.location.href = '../'; }, 1200);
-              } else {
-                statusDiv.textContent = 'Xəta: ' + (result.error || 'Naməlum xəta');
-              }
-            } catch (err) {
-              statusDiv.textContent = 'Xəta: ' + err.message;
-            }
-          }
+            
+            // Store installer instance globally for event handlers
+            window.installerInstance = this;
         });
-
-        // Navigation
-        document.getElementById('prev-btn').addEventListener('click', () => {
-            if (currentStep > 1) {
-                currentStep--;
-                showStep(currentStep);
-            }
-        });
-
-        document.getElementById('next-btn').addEventListener('click', () => {
-            // If we are on Step 3 and DB test passed, allow moving to Step 4
-            if (currentStep === 3 && dbTested) {
-                maxStep = Math.max(maxStep, 4);
-            }
-            if (currentStep < 4 && currentStep < maxStep) {
-                currentStep++;
-                showStep(currentStep);
-            }
-        });
-
-        // Initialize
-        showStep(currentStep);
     </script>
 </body>
 </html>
