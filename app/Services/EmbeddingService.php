@@ -15,7 +15,23 @@ class EmbeddingService
 
     public function __construct()
     {
+        // Initialize client lazily to avoid database dependency during service registration
+        // Client will be initialized when first needed
+    }
+    
+    protected function initializeClient()
+    {
+        if ($this->client !== null) {
+            return; // Already initialized
+        }
+        
         try {
+            // Check if database is available first
+            if (!\Schema::hasTable('ai_providers')) {
+                Log::info('AiProvider table not available, using fallback embedding');
+                return;
+            }
+            
             $provider = AiProvider::getActive();
             if ($provider) {
                 $this->driver = $provider->driver;
@@ -40,6 +56,9 @@ class EmbeddingService
         $text = trim($text);
         if ($text === '') return null;
 
+        // Initialize client if needed
+        $this->initializeClient();
+        
         // Try OpenAI-compatible embeddings first
         if ($this->client) {
             try {

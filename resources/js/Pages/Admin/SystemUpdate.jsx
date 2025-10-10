@@ -20,30 +20,13 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
     const toast = useToast();
     const { isDarkMode } = useTheme();
     const [isUpdating, setIsUpdating] = useState(false);
-    const [isRepairing, setIsRepairing] = useState(false);
     const [updateLog, setUpdateLog] = useState([]);
     const [updateStatus, setUpdateStatus] = useState('idle'); // idle, checking, updating, completed, error
     const [updateProgress, setUpdateProgress] = useState(0);
     const [updateSize, setUpdateSize] = useState(null);
     const [downloadSpeed, setDownloadSpeed] = useState(null);
-    const [updateSteps, setUpdateSteps] = useState([]);
     const [currentStep, setCurrentStep] = useState(0);
-
     const [history, setHistory] = useState([]);
-    
-    const updateStepsList = [
-        '🔧 Maintenance modu aktivləşdirilir...',
-        '📦 Verilənlər bazası backup edilir...',
-        '⬇️ Yenilik faylları endirilir...',
-        '📂 Fayllar çıxardılır və köçürülür...',
-        '🗄️ Verilənlər bazası yenilənir...',
-        '🧹 Cache təmizlənir...',
-        '📚 Dependencies yenilənir...',
-        '🔧 Cache yenidən qurulur...',
-        '🔗 Storage linklər yenilənir...',
-        '📝 Versiya məlumatları yenilənir...',
-        '🟢 Sayt yenidən aktiv edilir...'
-    ];
 
     const loadHistory = async () => {
         try {
@@ -114,7 +97,6 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
                         setUpdateLog(prev => [...prev, `📝 Dəyişikliklər: ${data.release_notes.slice(0, 100)}...`]);
                     }
                     setUpdateStatus('update-available');
-                    setUpdateSteps(updateStepsList);
                     // Store download URL for later use
                     window.updateDownloadUrl = data.download_url;
                 } else {
@@ -130,40 +112,59 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
         }
     };
 
-    const simulateProgress = () => {
-        let step = 0;
-        let progress = 0;
-        const totalSteps = updateSteps.length;
+
+    // Define progress calculation based on backend steps
+    const updateStepNames = [
+        'Yeniləmə başlandı',
+        'Sistem hazırlığı yoxlanılır', 
+        'Backup yaradılır',
+        'Bakım rejimi aktivləşir',
+        'Update paketi endirilir',
+        'Paket yüklənir',
+        'Fayllar kopyalanır',
+        'Frontend assets quraşdırılır',
+        'Verilənlər bazası yenilənir',
+        'Asılılıqlar yoxlanılır',
+        'Sistem cache-i yenilənir', 
+        'Quraşdırma doğrulanır',
+        'Versiya yenilənir',
+        'Yeniləmə tamamlandı'
+    ];
+    
+    const calculateProgressFromLogs = (logs) => {
+        const progressSteps = [
+            { pattern: /KÖKLÜ AVTOMATİK YENİLƏMƏ BAŞLANDI/, progress: 5, step: 0 },
+            { pattern: /Sistem hazırlığı yoxlanılır/, progress: 10, step: 1 },
+            { pattern: /Atom backup yaradılır/, progress: 15, step: 2 },
+            { pattern: /Maintenance mode aktivləşir/, progress: 20, step: 3 },
+            { pattern: /Update paketi endirilir/, progress: 25, step: 4 },
+            { pattern: /Downloaded via/, progress: 35, step: 5 },
+            { pattern: /Fayllar deploy edilir/, progress: 45, step: 6 },
+            { pattern: /Frontend assets deploy edilir/, progress: 55, step: 7 },
+            { pattern: /Database yenilənir/, progress: 65, step: 8 },
+            { pattern: /Dependencies yoxlanılır/, progress: 75, step: 9 },
+            { pattern: /System cache yenilənir/, progress: 85, step: 10 },
+            { pattern: /Deployment yoxlanılır/, progress: 90, step: 11 },
+            { pattern: /Versiya yenilənir/, progress: 95, step: 12 },
+            { pattern: /YENİLƏMƏ TAMAMILƏ UĞURLU/, progress: 100, step: 13 }
+        ];
+
+        let maxProgress = 0;
+        let currentStepIndex = 0;
         
-        const progressInterval = setInterval(() => {
-            if (step < totalSteps) {
-                const stepProgress = Math.floor((step / totalSteps) * 100);
-                const randomIncrement = Math.random() * 10 + 5;
-                progress = Math.min(100, stepProgress + randomIncrement);
-                
-                setUpdateProgress(Math.floor(progress));
-                setCurrentStep(step);
-                
-                if (step < totalSteps) {
-                    setUpdateLog(prev => [...prev, updateSteps[step]]);
-                    step++;
-                }
-                
-                if (progress >= 100) {
-                    clearInterval(progressInterval);
-                    setUpdateStatus('completed');
-                    setUpdateProgress(100);
-                    setCurrentStep(totalSteps - 1);
-                    toast.success('Sistem uğurla yeniləndi!');
-                    
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 3000);
+        // Find the highest matching progress step
+        for (const log of logs) {
+            for (const step of progressSteps) {
+                if (step.pattern.test(log)) {
+                    if (step.progress > maxProgress) {
+                        maxProgress = step.progress;
+                        currentStepIndex = step.step;
+                    }
                 }
             }
-        }, 2000);
+        }
         
-        return progressInterval;
+        return { progress: maxProgress, step: currentStepIndex };
     };
 
     const performUpdate = async () => {
@@ -182,29 +183,7 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
         setUpdateProgress(0);
         setCurrentStep(0);
 
-        try {
-            // Start real-time log fetching
-            const logInterval = setInterval(async () => {
-                try {
-                    const logResponse = await fetch('/admin/system/update-log', {
-                        headers: {
-                            'Accept': 'application/json',
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                            'X-XSRF-TOKEN': getCookie('XSRF-TOKEN')
-                        },
-                        credentials: 'same-origin'
-                    });
-                    const logData = await logResponse.json();
-                    if (logData.log) {
-                        const logLines = logData.log.split('\n').filter(line => line.trim());
-                        setUpdateLog(logLines);
-                    }
-                } catch (e) {
-                    // Silently ignore log fetch errors
-                }
-            }, 1000);
-            
+            try {
             const response = await fetch('/admin/system/perform-update', {
                 method: 'POST',
                 headers: {
@@ -237,15 +216,27 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
                     // Update on-screen log incrementally
                     const lines = accumulatedText.split('\n').filter(line => line.trim());
                     setUpdateLog(lines);
+                    
+                    // Calculate and update progress based on current logs
+                    const { progress, step } = calculateProgressFromLogs(lines);
+                    if (progress > 0) {
+                        setUpdateProgress(progress);
+                        setCurrentStep(step);
+                    }
                 }
             } else {
                 // Fallback: non-streaming environments
                 accumulatedText = await response.text();
                 const lines = accumulatedText.split('\n').filter(line => line.trim());
                 setUpdateLog(lines);
+                
+                // Calculate progress for non-streaming fallback
+                const { progress, step } = calculateProgressFromLogs(lines);
+                if (progress > 0) {
+                    setUpdateProgress(progress);
+                    setCurrentStep(step);
+                }
             }
-
-            clearInterval(logInterval);
 
             // Handle 419 CSRF Token Mismatch specifically
             if (response.status === 419) {
@@ -290,65 +281,6 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
         }
     };
 
-    const performSystemFixAndRepair = async () => {
-        if (!confirm('🔧 SSH-free Sistem Bərpası başlayacaq!\n\nBu proses:\n• Migration problemlərini həll edəcək\n• Database strukturunu yoxlayacaq\n• Cache-i təmizləyəcək\n• AiService metodlarını yoxlayacaq\n\nDavam etmək istəyirsiniz?')) {
-            return;
-        }
-
-        setIsRepairing(true);
-        setUpdateLog(['🔧 === SSH-FREE SİSTEM BƏRPASI BAŞLADI ===']);
-        
-        try {
-            const response = await fetch('/admin/system/fix-and-repair', {
-                method: 'POST',
-                headers: {
-                    'Accept': 'text/plain',
-                    'Content-Type': 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN')
-                },
-                credentials: 'same-origin'
-            });
-            
-            const data = await response.text();
-            
-            // Parse the streamed text response
-            const lines = data.split('\n').filter(line => line.trim());
-            
-            // Display all log lines
-            lines.forEach(line => {
-                setUpdateLog(prev => [...prev, line]);
-            });
-            
-            // Check for success/failure markers
-            if (data.includes('[[REPAIR_SUCCESS]]')) {
-                setUpdateLog(prev => [...prev, 'SUCCESS: Sistem problemləri həll olundu!']);
-                setUpdateLog(prev => [...prev, '3 saniyə sonra səhifə yenilənəcək...']);
-                
-                toast.success('Sistem bərpası uğurlu! Səhifə yenilənir...');
-                
-                setTimeout(() => {
-                    window.location.reload();
-                }, 3000);
-            } else if (data.includes('[[REPAIR_FAILED]]')) {
-                throw new Error('Sistem bərpası xətalarla tamamlandı');
-            } else {
-                // If no explicit markers, consider it successful
-                setUpdateLog(prev => [...prev, 'SUCCESS: Sistem bərpası tamamlandı']);
-                toast.success('Sistem bərpası tamamlandı!');
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
-            }
-            
-        } catch (error) {
-            setUpdateLog(prev => [...prev, '❌ Sistem bərpası xətası: ' + error.message]);
-            toast.error('Sistem bərpası uğursuz: ' + error.message);
-        } finally {
-            setIsRepairing(false);
-        }
-    };
 
     useEffect(() => {
         // Auto-check on load
@@ -455,9 +387,9 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
                                                     <div className="absolute inset-0 bg-white/20 animate-pulse rounded-full"></div>
                                                 </div>
                                             </div>
-                                            {currentStep < updateSteps.length && (
+                                            {updateStepNames[currentStep] && (
                                                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                                                    Addım {currentStep + 1}/{updateSteps.length}: {updateSteps[currentStep]?.split(' ').slice(1).join(' ')}
+                                                    Addım {currentStep + 1}/{updateStepNames.length}: {updateStepNames[currentStep]}
                                                 </div>
                                             )}
                                             {downloadSpeed && (
@@ -489,17 +421,6 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
                                             {isUpdating ? 'Yenilənir...' : `v${latestVersion} Yenilə`}
                                         </button>
                                     )}
-                                    
-                                    {/* SSH-free Fix & Repair Button - Always Available */}
-                                    <button
-                                        onClick={performSystemFixAndRepair}
-                                        disabled={isUpdating || isRepairing}
-                                        className="w-full py-3 px-4 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 border-2 border-orange-300 dark:border-orange-700"
-                                        title="SSH olmadan sistem problemlərini həll edir"
-                                    >
-                                        <Icon name="tool" size={16} />
-                                        {isRepairing ? 'Bərpa edilir...' : '🔧 Fiksasiya və Bərpa'}
-                                    </button>
                                 </div>
 
                                 <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">

@@ -1,6 +1,6 @@
 # Laravel
 /node_modules
-#/public/build
+# /public/build  # Commented out to include built assets in repo for hosting deployment
 /public/hot
 /public/storage
 /storage/*.key

@@ -1,6 +1,6 @@
 ﻿{
     "name":  "XIV AI Fəqih",
-    "version":  "v1.0.12",
+    "version":  "",
     "initial_version":  "1.0.0",
     "release_date":  "2025-10-10",
     "author":  {
@@ -14,8 +14,18 @@
                     "repository":  "https://github.com/MAkbarov/XIV-AI-Feqih"
                 },
     "changes":  [
-                    "vv1.0.12: 1.0.12",
-                    "vv1.0.12: v1.0.12",
+                    "vv1.0.14: v",
+                    "v1.0.17: CRITICAL: Post-repair cache clearing - prevents 500 error after repair operations",
+                    "v1.0.17: ENHANCED: Aggressive bootstrap cache clearing to resolve APP_KEY issues",
+                    "v1.0.17: AUTOMATED: Emergency cache cleanup on repair failure",
+                    "v1.0.16: RESOLVED: Unknown database error during service registration",
+                    "v1.0.15: RESOLVED: Service registration order dependency issue",
+                    "v1.0.14: REMOVED: Confusing table rename migrations - clean deployment",
+                    "v1.0.14: OPTIMIZED: Simplified database schema for installer/updater compatibility",
+                    "v1.0.13: FIXED: AI Training knowledge_bases table compatibility issue",
+                    "v1.0.13: ENHANCED: TrainingService and EmbeddingService properly registered in DI container",
+                    "v1.0.13: IMPROVED: Dynamic table name detection for knowledge_base/knowledge_bases",
+                    "v1.0.12: FIXED: JSON emoji issue in repair system + smart asset deployment",
                     "vv1.0.11: 1.0.11",
                     "v1.0.11: CRITICAL: Auto-Deploy Assets System - Full automation for hosting",
                     "v1.0.10: Test deployment fixed script",

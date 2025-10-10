@@ -1552,10 +1552,24 @@ class SystemUpdateController extends Controller
                 $this->performFinalOptimization();
                 
                 $this->logMessage('SUCCESS: === SYSTEM FIX & REPAIR COMPLETED SUCCESSFULLY ===');
+                
+                // CRITICAL: Post-repair cache clearing to prevent subsequent 500 errors
+                $this->logMessage('FINAL: Post-repair cache clearing...');
+                $this->performPostRepairCacheClear();
+                
                 $this->logMessage('[[REPAIR_SUCCESS]] System repair completed successfully!');
                 
             } catch (\Exception $e) {
                 $this->logMessage('ERROR: System fix failed: ' . $e->getMessage());
+                
+                // Even on failure, try to clear cache to prevent issues
+                try {
+                    $this->logMessage('CLEANUP: Emergency cache clear after failure...');
+                    $this->performPostRepairCacheClear();
+                } catch (\Exception $cleanupError) {
+                    $this->logMessage('WARNING: Emergency cleanup failed: ' . $cleanupError->getMessage());
+                }
+                
                 $this->logMessage('[[REPAIR_FAILED]] ' . $e->getMessage());
             }
             
@@ -1592,6 +1606,65 @@ class SystemUpdateController extends Controller
             
         } catch (\Exception $e) {
             $this->logMessage('⚠️ Cache clear warning: ' . $e->getMessage());
+        }
+    }
+    
+    /**
+     * Post-repair cache clearing - prevents 500 errors after repair operations
+     * This is more aggressive than normal cache clearing
+     */
+    private function performPostRepairCacheClear(): void
+    {
+        try {
+            $this->logMessage('INFO: Starting post-repair cache clearing...');
+            
+            // Standard Laravel cache clearing
+            Artisan::call('cache:clear');
+            Artisan::call('config:clear');
+            Artisan::call('route:clear');
+            Artisan::call('view:clear');
+            
+            // Force clear bootstrap cache (most important for APP_KEY issues)
+            $bootstrapCache = base_path('bootstrap/cache');
+            $filesToDelete = [
+                $bootstrapCache . '/config.php',
+                $bootstrapCache . '/packages.php',
+                $bootstrapCache . '/services.php',
+            ];
+            
+            foreach ($filesToDelete as $file) {
+                if (File::exists($file)) {
+                    File::delete($file);
+                    $this->logMessage('INFO: Deleted bootstrap cache file: ' . basename($file));
+                }
+            }
+            
+            // Clear route cache files
+            $routeCacheFiles = glob($bootstrapCache . '/route-*.php');
+            foreach ($routeCacheFiles as $file) {
+                if (File::exists($file)) {
+                    File::delete($file);
+                    $this->logMessage('INFO: Deleted route cache file: ' . basename($file));
+                }
+            }
+            
+            // Force clear application cache
+            $this->forceClearFileCache();
+            
+            // Reset OPcache
+            $this->resetOPCache();
+            
+            // Force garbage collection
+            if (function_exists('gc_collect_cycles')) {
+                gc_collect_cycles();
+                $this->logMessage('INFO: Forced garbage collection');
+            }
+            
+            $this->logMessage('SUCCESS: Post-repair cache clearing completed');
+            
+        } catch (\Exception $e) {
+            $this->logMessage('WARNING: Post-repair cache clear error: ' . $e->getMessage());
+            // Don't throw - we want repair to continue
         }
     }
     
