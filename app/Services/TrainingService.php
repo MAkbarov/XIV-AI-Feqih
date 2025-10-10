@@ -88,23 +88,37 @@ class TrainingService
             // 2. Məzmunu analiz et və təmizlə
             $processedData = $this->processContent($rawContent, $url);
 
-            // 2.5. Səviyyəyə əsasən xülasə (max_depth parametrlə uyğunlaşdırılıb)
-            $level = (int)($options['max_depth'] ?? 5);
+            // 2.5. Səviyyəyə əsasən xülasə - TƏK URL ÜÇÜN HƏMIŞƏ FULL PAGE
+            $level = (int)($options['level'] ?? 5);
+            $isSingleMode = $options['single'] ?? true;
             $originalLength = strlen($processedData['content']);
-            if ($level < 5) {
+            
+            // Tək URL üçün həmişə full page (level 5), multi-page üçün seçilən level
+            if (!$isSingleMode && $level < 5) {
                 $processedData['content'] = $this->summarizeByLevel($processedData['content'], $level);
-                Log::info('📋 Səviyyəyə görə xülasələşdirildi', [
+                Log::info('Səviyyəyə görə xülasələşdirildi (multi-page)', [
                     'url' => $url,
                     'level' => $level,
                     'original_length' => $originalLength,
                     'summarized_length' => strlen($processedData['content']),
                     'reduction_percent' => round((1 - strlen($processedData['content']) / $originalLength) * 100)
                 ]);
+            } else {
+                Log::info('Tam məzmun saxlanıldı', [
+                    'url' => $url,
+                    'mode' => $isSingleMode ? 'single_page' : 'multi_page_level_5',
+                    'content_length' => $originalLength
+                ]);
             }
             
-            // 3. Minimum məzmun yoxla
-            if (strlen($processedData['content']) < 50) {
-                throw new Exception('Məzmun çox qısadır, əzbərləmək üçün uyğun deyil');
+            // 3. Minimum məzmun yoxla - ARTİRILDI
+            if (strlen($processedData['content']) < 150) {
+                Log::warning('⚠️ Məzmun çox qısadır', [
+                    'url' => $url,
+                    'content_length' => strlen($processedData['content']),
+                    'content_preview' => mb_substr($processedData['content'], 0, 200)
+                ]);
+                throw new Exception('Məzmun çox qısadır ('.strlen($processedData['content']).' hərf), əzbərləmək üçün minimum 150 hərf lazımdır');
             }
             
             // 4. Mövcud məzmunu yoxla (dublikat qarşısını al)
@@ -257,40 +271,39 @@ class TrainingService
                     ]);
                 }
                 
-                // Daha dərin get
-                if ($depth < $maxDepth) {
-                    $links = $this->extractLinks($url, $baseUrl);
-                    Log::info('🔗 Linklər tapıldı', [
-                        'url' => $url, 
-                        'links_count' => count($links),
-                        'depth' => $depth,
-                        'max_depth' => $maxDepth,
-                        'sample_links' => array_slice($links, 0, 5)
-                    ]);
-                    
-                    // Filter links to stay within scope - Geniş scope
-                    $filtered = [];
-                    $rejected = [];
-                    foreach ($links as $link) {
-                        if ($this->isLinkInScopeForFullSite($link, $scopeScheme, $scopeHost, $scopePath) && !in_array($link, $processed)) {
-                            $filtered[] = $link;
-                        } else {
-                            $rejected[] = $link;
-                        }
+                // 🎆 DƏRİNLİK MƏHDUDİYYƏTİ ARADAN GÖTÜRÜLDÜ - URL daxilində bütün linkləri tap
+                // Depth yox, yalnız scope əsasinda qarşısını al
+                $links = $this->extractLinks($url, $baseUrl);
+                Log::info('🔗 Linklər tapıldı', [
+                    'url' => $url, 
+                    'links_count' => count($links),
+                    'depth' => $depth, // Depth saxlanır amma məhdud deyil
+                    'sample_links' => array_slice($links, 0, 5)
+                ]);
+                
+                // Filter links to stay within scope - TəKCƏ URL SCOPE
+                $filtered = [];
+                $rejected = [];
+                foreach ($links as $link) {
+                    if ($this->isLinkInScopeForFullSite($link, $scopeScheme, $scopeHost, $scopePath) && !in_array($link, $processed)) {
+                        $filtered[] = $link;
+                    } else {
+                        $rejected[] = $link;
                     }
-                    
-                    Log::info('🔄 Link filtering nəticələri', [
-                        'total_links' => count($links),
-                        'filtered_count' => count($filtered),
-                        'rejected_count' => count($rejected),
-                        'sample_filtered' => array_slice($filtered, 0, 3),
-                        'sample_rejected' => array_slice($rejected, 0, 3)
-                    ]);
-                    
-                    foreach ($filtered as $link) {
-                        $queue[] = ['url' => $link, 'depth' => $depth + 1];
-                        $discovered++;
-                    }
+                }
+                
+                Log::info('🔄 Link filtering nəticələri', [
+                    'total_links' => count($links),
+                    'filtered_count' => count($filtered),
+                    'rejected_count' => count($rejected),
+                    'scope_explanation' => "Yalnız '{$scopePath}' daxilində olan linklər qəbul edilir",
+                    'sample_filtered' => array_slice($filtered, 0, 3),
+                    'sample_rejected' => array_slice($rejected, 0, 3)
+                ]);
+                
+                foreach ($filtered as $link) {
+                    $queue[] = ['url' => $link, 'depth' => $depth + 1]; // Depth sayılır amma məhdud deyil
+                    $discovered++;
                 }
                 
                 // Server-ə hörmət et
@@ -343,7 +356,7 @@ class TrainingService
     }
     
     /**
-     * Full site üçün daha geniş link scope - bütün sayt üçün
+     * Full site üçün SCOPE-A UYĞUN link scope - yalnız verilən URL path daxilində
      */
     protected function isLinkInScopeForFullSite(string $link, string $scopeScheme, string $scopeHost, string $scopePath): bool
     {
@@ -353,12 +366,35 @@ class TrainingService
         $scheme = $parts['scheme'] ?? '';
         $host = $parts['host'] ?? '';
         $path = $parts['path'] ?? '/';
+        $path = rtrim($path, '/');
         
         // Same host only (əsas məhdudiyyət)
         if (strcasecmp($host, $scopeHost) !== 0) return false;
         
         // Same scheme if provided
         if ($scopeScheme && strcasecmp($scheme, $scopeScheme) !== 0) return false;
+        
+        // 🎯 YENİ SCOPE MƏHDUDİYYƏTİ: Yalnız verilən URL-in "qovluğu" daxilində
+        // Məsələn: sayt.az/url verilibsə, yalnız sayt.az/url* ilə başlayan linkləri götür
+        if ($scopePath && $scopePath !== '' && $scopePath !== '/') {
+            $normalizedScopePath = rtrim($scopePath, '/');
+            $normalizedLinkPath = rtrim($path, '/');
+            
+            // Link ya tam uyğun olmalı, ya da scopePath/ ilə başlamalıdır
+            $isExactMatch = ($normalizedLinkPath === $normalizedScopePath);
+            $isInSubPath = strpos($normalizedLinkPath . '/', $normalizedScopePath . '/') === 0;
+            
+            if (!$isExactMatch && !$isInSubPath) {
+                Log::info('🚫 Scope xaricində link: ' . $link, [
+                    'link_path' => $normalizedLinkPath,
+                    'scope_path' => $normalizedScopePath,
+                    'is_exact_match' => $isExactMatch,
+                    'is_in_sub_path' => $isInSubPath,
+                    'example' => "Scope: {$normalizedScopePath}, Link: {$normalizedLinkPath}"
+                ]);
+                return false;
+            }
+        }
         
         // İstənilməyən fayl tipləri
         $unwantedExtensions = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.zip', '.rar', '.exe', '.mp3', '.mp4', '.avi', '.jpg', '.jpeg', '.png', '.gif', '.css', '.js', '.json', '.xml'];
@@ -375,6 +411,12 @@ class TrainingService
                 return false;
             }
         }
+        
+        Log::info('✅ Link scope daxilindədir: ' . $link, [
+            'link_path' => $path,
+            'scope_path' => $scopePath,
+            'reason' => 'Path scope qəbul edildi'
+        ]);
         
         return true;
     }
@@ -418,27 +460,36 @@ class TrainingService
             // 2. Məzmunu analiz et və təmizlə
             $processedData = $this->processContent($rawContent, $url);
 
-            // 2.5. Səviyyəyə əsasən xülasə (max_depth parametrlə uyğunlaşdırılıb)
-            $level = (int)($options['max_depth'] ?? 5);
+            // 2.5. Multi-page training üçün səviyyəyə əsasən xülasə
+            $level = (int)($options['level'] ?? 5);
             $originalLength = strlen($processedData['content']);
+            
+            // Multi-page training-də seçilən level-ə görə xülasələşdir
             if ($level < 5) {
                 $processedData['content'] = $this->summarizeByLevel($processedData['content'], $level);
-                Log::info('📋 Multi-site: Səviyyəyə görə xülasələşdirildi', [
+                Log::info('Multi-site: Səviyyəyə görə xülasələşdirildi', [
                     'url' => $url,
                     'level' => $level,
                     'original_length' => $originalLength,
                     'summarized_length' => strlen($processedData['content']),
                     'reduction_percent' => round((1 - strlen($processedData['content']) / $originalLength) * 100)
                 ]);
+            } else {
+                Log::info('Multi-site: Tam məzmun saxlanıldı', [
+                    'url' => $url,
+                    'level' => $level,
+                    'content_length' => $originalLength
+                ]);
             }
             
-            // 3. Minimum məzmun yoxla
-            if (strlen($processedData['content']) < 50) {
+            // 3. Minimum məzmun yoxla - ARTİRILDI
+            if (strlen($processedData['content']) < 200) { // Multi-site üçün daha yüksək minimum
                 Log::warning('⚠️ Məzmun çox qısadır - səhifə atlanır', [
                     'url' => $url, 
                     'content_length' => strlen($processedData['content']),
                     'content_preview' => mb_substr($processedData['content'], 0, 200),
-                    'title' => $processedData['title'] ?? 'N/A'
+                    'title' => $processedData['title'] ?? 'N/A',
+                    'minimum_required' => 200
                 ]);
                 return null;
             }
@@ -754,17 +805,39 @@ class TrainingService
             }
         }
         
-        // 3a. UTF-8 görünsə də "mojibake" varsa düzəlt
+        // 3a. UTF-8 görünsə də "mojibake" varsa düzəlt - GÜÇLƏNDİRİLMİŞ
         if ($isUTF8Valid && ($detectedEncoding === 'UTF-8' || !$detectedEncoding)) {
-            // Tipik yanlış deşifrə edilmiş UTF-8 nümunələri: Ã, Å, Ä, Â, É, Åş, Äı, Ã¶, Ã§, Ãü, Ä, É™
-            if (preg_match('/(Ã|Å|Ä|Â|É|Åş|Äı|Ã¶|Ã§|Ãü|Ä)/u', $content)) {
+            // Azərbaycan və türkçə üçün mojibake nümunələri
+            if (preg_match('/(Ã|Å|Ä|Â|É|Åş|Äı|Ã¶|Ã§|Ãü|Ä|É™|HÃ¦|ŞÉ|É™lə|ÅÄı|mÉ™sÉ™lÉ™lÉ™ri)/u', $content)) {
+                Log::info('🔄 Azərbaycan/Türk encoding problemi tapıldı, düzəltmə başlanır');
+                
+                // İlk öncə Windows-1254 (Türk) ilə cəhd et
+                $turkishFixed = @mb_convert_encoding($content, 'UTF-8', 'Windows-1254');
+                if ($turkishFixed && mb_check_encoding($turkishFixed, 'UTF-8')) {
+                    $scoreAfter = preg_match_all('/[əçğıöşüƏÇĞİÖŞÜ]/u', $turkishFixed, $m);
+                    if ($scoreAfter > 5) {
+                        Log::info('✅ Windows-1254 ilə uğurla düzəldildi', ['az_chars' => $scoreAfter]);
+                        return $turkishFixed;
+                    }
+                }
+                
+                // Sonra ISO-8859-9 ilə cəhd et
+                $isoFixed = @mb_convert_encoding($content, 'UTF-8', 'ISO-8859-9');
+                if ($isoFixed && mb_check_encoding($isoFixed, 'UTF-8')) {
+                    $scoreAfter = preg_match_all('/[əçğıöşüƏÇĞİÖŞÜ]/u', $isoFixed, $m);
+                    if ($scoreAfter > 3) {
+                        Log::info('✅ ISO-8859-9 ilə uğurla düzəldildi', ['az_chars' => $scoreAfter]);
+                        return $isoFixed;
+                    }
+                }
+                
+                // Son cəhd - əvvəlki metod
                 $fixed = @iconv('Windows-1252', 'UTF-8//IGNORE', utf8_decode($content));
                 if ($fixed !== false && mb_check_encoding($fixed, 'UTF-8')) {
-                    // Heuristika: düzəldikdən sonra daha çox az/türk hərfi görünürsə qəbul et
                     $scoreBefore = preg_match_all('/[şğıöçüİıƏə]/u', $content, $m1);
                     $scoreAfter  = preg_match_all('/[şğıöçüİıƏə]/u', $fixed, $m2);
                     if ($scoreAfter >= $scoreBefore) {
-                        Log::info('✅ Mojibake düzəldildi (utf8_decode+iconv)');
+                        Log::info('✅ Fallback mojibake düzəldildi (utf8_decode+iconv)');
                         return $fixed;
                     }
                 }
@@ -866,17 +939,30 @@ class TrainingService
                 }
             }
             
-            // Əsas məzmun sahəsini tap
+            // Əsas məzmun sahəsini tap - GENİŞLƏNDİRİLMİŞ
             $contentSelectors = [
                 'main',
-                'article',
+                'article', 
+                '.entry-content',
+                '.post-body',
+                '.article-content',
+                '.content-area',
+                '.main-content',
+                '.article-body',
+                '.post-content',
+                '.entry-body',
+                '.content-wrapper',
+                '.page-content',
+                '.single-content',
+                '.content',
                 "[role='main']",
-                ".content",
-                ".main-content",
-                ".article-body",
-                ".post-content",
                 "#content",
-                "#main"
+                "#main",
+                "#primary",
+                "#post-content",
+                'body .container',
+                'body .main',
+                '.text-content'
             ];
             
             $mainContent = '';
@@ -1044,16 +1130,21 @@ class TrainingService
     protected function summarizeByLevel(string $content, int $level): string
     {
         $length = strlen($content);
+        // 🔥 YENİLƏNMİŞ FARİZLəR Və MİNİMUM UZUNLUQLAR
         $map = [
-            4 => min(1500, (int) round($length * 0.75)),
-            3 => min(1000, (int) round($length * 0.5)),
-            2 => min(600, (int) round($length * 0.4)), 
-            1 => min(400, (int) round($length * 0.25)), // Artırıldı ki çox qısa olmasın
+            4 => max(3000, (int) round($length * 0.75)), // 75% saxla, minimum 3000 hərf
+            3 => max(2000, (int) round($length * 0.50)), // 50% saxla, minimum 2000 hərf
+            2 => max(1200, (int) round($length * 0.30)), // 30% saxla, minimum 1200 hərf
+            1 => max(800, (int) round($length * 0.15)),  // 15% saxla, minimum 800 hərf
         ];
         
         // Əgər məzmun artıq qısadırsa, xülasələşdirməyə ehtiyac yoxdur
-        if ($level >= 5 || $length <= 400) {
-            Log::info('ℹ️ Xülasələşdirmə atlanıldı', ['level' => $level, 'content_length' => $length]);
+        if ($level >= 5 || $length <= 800) { // Minimum uzunluğu 800-ə artırdıq
+            Log::info('ℹ️ Xülasələşdirmə atlanıldı', [
+                'level' => $level, 
+                'content_length' => $length,
+                'reason' => $level >= 5 ? 'level_5_full_content' : 'content_too_short_for_summary'
+            ]);
             return $content;
         }
         
@@ -1067,29 +1158,34 @@ class TrainingService
             return $smartReduced;
         }
         
-        // SMART MODE: Səviyyə 3+ üçün AI istifadə et amma timeout qoy
+        // SMART MODE: Səviyyə 3-4 üçün AI istifadə et - daha sürətli
         try {
-            if ($this->aiService && $level >= 3) {
+            if ($this->aiService && $level >= 3 && $level <= 4) {
                 Log::info('🤖 AI xülasələşdirmə başlanır', ['level' => $level, 'target_length' => $target]);
                 
-                // 5 saniyə timeout - daha qısa
+                // Daha qısa mətn və daha sürətli prompt
+                $shortContent = mb_substr($content, 0, min(1500, $target * 2)); // Daha qısa input
                 $messages = [
-                    ['role' => 'system', 'content' => 'Qısaca xülasə et, maksimum ' . $target . ' hərf.'],
-                    ['role' => 'user', 'content' => mb_substr($content, 0, 2000)] // Daha da az mətn
+                    ['role' => 'system', 'content' => "Azərbaycan dilində qısa xülasə et. Maksimum $target hərf. Əsas məlumatları saxla."],
+                    ['role' => 'user', 'content' => $shortContent]
                 ];
                 
                 $startTime = microtime(true);
-                $resp = $this->aiService->chat($messages, $target);
+                // Timeout daha qısa - 3 saniyə
+                $resp = $this->aiService->chat($messages, $target, ['timeout' => 3]);
                 $endTime = microtime(true);
-                $duration = round(($endTime - $startTime) * 1000); // milliseconds
+                $duration = round(($endTime - $startTime) * 1000);
                 
                 $summary = $resp['content'] ?? '';
-                if (is_string($summary) && strlen($summary) > 50 && $duration < 5000) { // 5 saniyədən az
-                    Log::info('✅ AI xülasə hazir', ['duration_ms' => $duration, 'length' => strlen($summary)]);
+                if (is_string($summary) && strlen($summary) > 30 && $duration < 3500) {
+                    Log::info('✅ AI xülasə hazır', ['duration_ms' => $duration, 'length' => strlen($summary)]);
                     return $summary;
                 }
                 
-                Log::warning('⚠️ AI çox yavaş və ya boş, fallback istifadə edilir', ['duration_ms' => $duration]);
+                Log::warning('⚠️ AI timeout və ya qeyri-keyfiyyətli, fallback istifadə edilir', [
+                    'duration_ms' => $duration, 
+                    'summary_length' => strlen($summary)
+                ]);
             }
         } catch (\Throwable $e) { 
             Log::warning('❌ AI xətası, fallback istifadə edilir', ['error' => $e->getMessage()]);

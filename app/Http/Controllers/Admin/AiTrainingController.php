@@ -189,12 +189,14 @@ class AiTrainingController extends Controller
             'url' => 'required|url',
             'single' => 'boolean',
             'max_depth' => 'integer|min:1|max:5',
+            'level' => 'integer|min:1|max:5',  // 🆕 Səviyyə əlavə edildi
             'category' => 'nullable|string|max:50',
             'source' => 'nullable|string|max:100',
         ]);
 
         $single = $validated['single'] ?? true;
         $maxDepth = $validated['max_depth'] ?? 1;
+        $level = $validated['level'] ?? 5;  // 🆕 Səviyyə parametri
 
         try {
             @set_time_limit(0);
@@ -232,6 +234,7 @@ class AiTrainingController extends Controller
             $result = $this->trainingService->trainFromUrl($validated['url'], [
                 'single' => $single,
                 'max_depth' => $maxDepth,
+                'level' => $level,  // 🆕 Səviyyə parametrini TrainingService-ə ötür
                 'category' => $validated['category'] ?? 'imported',
                 'source' => $validated['source'] ?? ($single ? 'Advanced URL Import' : 'Deep Site Training'),
                 'language' => 'az',
@@ -379,6 +382,66 @@ class AiTrainingController extends Controller
         $knowledge->delete();
 
         return redirect()->back()->with('success', 'Məlumat uğurla silindi!');
+    }
+    
+    /**
+     * Delete all knowledge items
+     */
+    public function deleteAllKnowledge()
+    {
+        \Log::info('🟢 DELETE ALL KNOWLEDGE REQUEST BAŞLADI', [
+            'method' => request()->method(),
+            'url' => request()->fullUrl(),
+            'user_id' => auth()->id(),
+            'timestamp' => now()->toISOString()
+        ]);
+        
+        try {
+            // Say bütün məlumatları
+            $totalCount = KnowledgeBase::count();
+            
+            if ($totalCount === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Bilik bazasında siləcək məlumat yoxdur.',
+                    'deleted_count' => 0
+                ], 400);
+            }
+            
+            // Bütün məlumatları sil
+            KnowledgeBase::truncate(); // Bütün cədvəli təmizlə - daha sürətli
+            
+            \Log::info('✅ Bütün bilik bazası təmizləndi', [
+                'deleted_count' => $totalCount,
+                'user_id' => auth()->id(),
+                'timestamp' => now()->toISOString()
+            ]);
+            
+            // JSON response və redirect - Inertia ilə uyğunluğu üçün
+            if (request()->expectsJson() || request()->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => "Bütün bilik bazası uğurla təmizləndi! {$totalCount} məlumat silindi.",
+                    'deleted_count' => $totalCount
+                ]);
+            }
+            
+            // Inertia redirects üçün
+            return redirect()->back()->with('success', "Bütün bilik bazası uğurla təmizləndi! {$totalCount} məlumat silindi.");
+            
+        } catch (\Exception $e) {
+            \Log::error('❌ Bütün bilik bazasını silərkən xəta', [
+                'error' => $e->getMessage(),
+                'user_id' => auth()->id(),
+                'timestamp' => now()->toISOString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Bilik bazasını təmizləyərkən xəta baş verdi: ' . $e->getMessage(),
+                'deleted_count' => 0
+            ], 500);
+        }
     }
 
     /**

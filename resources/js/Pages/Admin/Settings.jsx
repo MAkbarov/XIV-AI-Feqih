@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { Head, useForm } from '@inertiajs/react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import TextInput from '@/Components/TextInput';
@@ -6,10 +7,12 @@ import GlassSelect from '@/Components/GlassSelect';
 import { useToast } from '@/Components/ToastProvider';
 import { useTheme } from '@/Components/ThemeProvider';
 import Icon from '@/Components/Icon';
+import { motion } from 'framer-motion';
 
 export default function Settings({ settings }) {
     const toast = useToast();
     const { loadTheme } = useTheme();
+    const [activeTab, setActiveTab] = useState('site-settings');
     const { data, setData, post, processing, recentlySuccessful } = useForm({
         chatbot_name: settings.chatbot_name || '',
         message_input_limit: settings.message_input_limit || settings.guest_input_limit || '500',
@@ -81,15 +84,151 @@ export default function Settings({ settings }) {
             <div className="p-6 max-w-4xl mx-auto">
                 <h1 className="text-3xl font-bold mb-8 text-gray-800 dark:text-gray-100">Sayt Parametrləri</h1>
 
+                {/* Tab Navigation */}
+                <div className="mb-8">
+                    {/* Desktop tabs */}
+                    <div className="hidden md:block">
+                        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg rounded-2xl shadow-xl border border-gray-100 dark:border-gray-600 overflow-hidden">
+                            <div className="flex">
+                                <button
+                                    onClick={() => setActiveTab('site-settings')}
+                                    className={`flex-1 py-4 px-6 font-semibold transition-all duration-300 flex items-center justify-center gap-3 border-r border-gray-100 dark:border-gray-600 last:border-r-0 ${
+                                        activeTab === 'site-settings'
+                                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg transform scale-105'
+                                            : 'text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-blue-50 hover:to-indigo-50 dark:hover:from-blue-800/50 dark:hover:to-indigo-800/50 hover:text-blue-700 dark:hover:text-blue-300'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    </svg>
+                                    <span className="font-medium">Sayt Parametrləri</span>
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('chatbot-settings')}
+                                    className={`flex-1 py-4 px-6 font-semibold transition-all duration-300 flex items-center justify-center gap-3 border-r border-gray-100 dark:border-gray-600 last:border-r-0 ${
+                                        activeTab === 'chatbot-settings'
+                                            ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-lg transform scale-105'
+                                            : 'text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-green-50 hover:to-emerald-50 dark:hover:from-green-800/50 dark:hover:to-emerald-800/50 hover:text-green-700 dark:hover:text-green-300'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                    </svg>
+                                    <span className="font-medium">Çatbot Parametrləri</span>
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('ai-controls')}
+                                    className={`flex-1 py-4 px-6 font-semibold transition-all duration-300 flex items-center justify-center gap-3 border-r border-gray-100 dark:border-gray-600 last:border-r-0 ${
+                                        activeTab === 'ai-controls'
+                                            ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-lg transform scale-105'
+                                            : 'text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-red-50 hover:to-orange-50 dark:hover:from-red-800/50 dark:hover:to-orange-800/50 hover:text-red-700 dark:hover:text-red-300'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                    <span className="font-medium">AI Kontrol</span>
+                                </button>
+                                <button
+                                    onClick={() => setActiveTab('footer-settings')}
+                                    className={`flex-1 py-4 px-6 font-semibold transition-all duration-300 flex items-center justify-center gap-3 ${
+                                        activeTab === 'footer-settings'
+                                            ? 'bg-gradient-to-r from-violet-600 to-pink-600 text-white shadow-lg transform scale-105'
+                                            : 'text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-violet-50 hover:to-pink-50 dark:hover:from-violet-800/50 dark:hover:to-pink-800/50 hover:text-violet-700 dark:hover:text-violet-300'
+                                    }`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v1m0 0h6m-6 0V9a2 2 0 012-2h6a2 2 0 012 2v12a2 2 0 01-2 2H7m-6 0a2 2 0 002 2v0a2 2 0 002-2v0" />
+                                    </svg>
+                                    <span className="font-medium">Footer</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Mobile tabs */}
+                    <div className="md:hidden">
+                        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-2">
+                            <div role="tablist" aria-label="Settings Tabs" className="flex items-center gap-2 overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+                                <button
+                                    role="tab"
+                                    aria-selected={activeTab === 'site-settings'}
+                                    onClick={() => setActiveTab('site-settings')}
+                                    className={`shrink-0 px-3 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2 transition-all ${
+                                        activeTab === 'site-settings'
+                                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                                            : 'bg-blue-50 dark:bg-gray-700 text-blue-700 dark:text-gray-200 hover:bg-blue-100 dark:hover:bg-gray-600'
+                                    }`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    </svg>
+                                    <span>Sayt</span>
+                                </button>
+                                <button
+                                    role="tab"
+                                    aria-selected={activeTab === 'chatbot-settings'}
+                                    onClick={() => setActiveTab('chatbot-settings')}
+                                    className={`shrink-0 px-3 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2 transition-all ${
+                                        activeTab === 'chatbot-settings'
+                                            ? 'bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md'
+                                            : 'bg-green-50 dark:bg-gray-700 text-green-700 dark:text-gray-200 hover:bg-green-100 dark:hover:bg-gray-600'
+                                    }`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                    </svg>
+                                    <span>Çatbot</span>
+                                </button>
+                                <button
+                                    role="tab"
+                                    aria-selected={activeTab === 'ai-controls'}
+                                    onClick={() => setActiveTab('ai-controls')}
+                                    className={`shrink-0 px-3 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2 transition-all ${
+                                        activeTab === 'ai-controls'
+                                            ? 'bg-gradient-to-r from-red-600 to-orange-600 text-white shadow-md'
+                                            : 'bg-red-50 dark:bg-gray-700 text-red-700 dark:text-gray-200 hover:bg-red-100 dark:hover:bg-gray-600'
+                                    }`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                    </svg>
+                                    <span>AI</span>
+                                </button>
+                                <button
+                                    role="tab"
+                                    aria-selected={activeTab === 'footer-settings'}
+                                    onClick={() => setActiveTab('footer-settings')}
+                                    className={`shrink-0 px-3 py-2 rounded-full text-sm font-medium inline-flex items-center gap-2 transition-all ${
+                                        activeTab === 'footer-settings'
+                                            ? 'bg-gradient-to-r from-violet-600 to-pink-600 text-white shadow-md'
+                                            : 'bg-violet-50 dark:bg-gray-700 text-violet-700 dark:text-gray-200 hover:bg-violet-100 dark:hover:bg-gray-600'
+                                    }`}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v1m0 0h6m-6 0V9a2 2 0 012-2h6a2 2 0 012 2v12a2 2 0 01-2 2H7m-6 0a2 2 0 002 2v0a2 2 0 002-2v0" />
+                                    </svg>
+                                    <span>Footer</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* Site Settings */}
-                    <div className="backdrop-blur bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-6">
-                        <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300 flex items-center gap-3">
-                            <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                            </svg>
-                            Sayt Parametrləri
-                        </h2>
+                    {/* Site Settings Tab */}
+                    {activeTab === 'site-settings' && (
+                        <motion.div
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="backdrop-blur bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-6"
+                        >
+                            <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300 flex items-center gap-3">
+                                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                                Sayt Parametrləri
+                            </h2>
                         
                         <div className="space-y-4">
                             <div>
@@ -152,16 +291,22 @@ export default function Settings({ settings }) {
 
                             </div>
                         </div>
-                    </div>
+                        </motion.div>
+                    )}
 
-                    {/* Chatbot Settings */}
-                    <div className="backdrop-blur bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-6">
-                        <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300 flex items-center gap-3">
-                            <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                            Çatbot Parametrləri
-                        </h2>
+                    {/* Chatbot Settings Tab */}
+                    {activeTab === 'chatbot-settings' && (
+                        <motion.div
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="backdrop-blur bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-6"
+                        >
+                            <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300 flex items-center gap-3">
+                                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                                </svg>
+                                Çatbot Parametrləri
+                            </h2>
                         <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 dark:border-blue-500 p-4 mb-4">
                             <p className="text-sm text-blue-700 dark:text-blue-300">
                                 <strong>Qeyd:</strong> AI Sistem Təlimatı və Bilik Bazası üçün 
@@ -269,16 +414,22 @@ export default function Settings({ settings }) {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                        </motion.div>
+                    )}
 
-                    {/* AI Professional Controls */}
-                    <div className="backdrop-blur bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-6">
-                        <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300 flex items-center gap-3">
-                            <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                            </svg>
-                            AI Professional Controls
-                        </h2>
+                    {/* AI Professional Controls Tab */}
+                    {activeTab === 'ai-controls' && (
+                        <motion.div
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="backdrop-blur bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-6"
+                        >
+                            <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300 flex items-center gap-3">
+                                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                                </svg>
+                                AI Professional Controls
+                            </h2>
                         
                         <div className="space-y-6">
                             <div>
@@ -395,18 +546,24 @@ export default function Settings({ settings }) {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                        </motion.div>
+                    )}
 
 
 
-                    {/* Chat Background Settings */}
-                    <div className="backdrop-blur bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-6">
-                        <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300 flex items-center gap-3">
-                            <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            Çatbot Arxa Fon Parametrlərı
-                        </h2>
+                    {/* Chat Background Settings Tab */}
+                    {activeTab === 'background-settings' && (
+                        <motion.div
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="backdrop-blur bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-6"
+                        >
+                            <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300 flex items-center gap-3">
+                                <svg className="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                Çatbot Arxa Fon Parametrlərı
+                            </h2>
                         
                         <div className="space-y-6">
                             <div>
@@ -706,16 +863,22 @@ export default function Settings({ settings }) {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                        </motion.div>
+                    )}
                     
-                    {/* Footer Settings */}
-                    <div className="backdrop-blur bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-6">
-                        <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300 flex items-center gap-3">
-                            <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v1m0 0h6m-6 0V9a2 2 0 012-2h6a2 2 0 012 2v12a2 2 0 01-2 2H7m-6 0a2 2 0 002 2v0a2 2 0 002-2v0" />
-                            </svg>
-                            Footer Parametrləri
-                        </h2>
+                    {/* Footer Settings Tab */}
+                    {activeTab === 'footer-settings' && (
+                        <motion.div
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            className="backdrop-blur bg-white/90 dark:bg-gray-800/90 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-600 p-6"
+                        >
+                            <h2 className="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300 flex items-center gap-3">
+                                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v1m0 0h6m-6 0V9a2 2 0 012-2h6a2 2 0 012 2v12a2 2 0 01-2 2H7m-6 0a2 2 0 002 2v0a2 2 0 002-2v0" />
+                                </svg>
+                                Footer Parametrləri
+                            </h2>
                         
                         <div className="space-y-4">
                             <div>
@@ -892,15 +1055,16 @@ export default function Settings({ settings }) {
                                 </div>
                             )}
                         </div>
-                    </div>
+                        </motion.div>
+                    )}
 
-                    <div className="flex justify-end">
+                    <div className="flex justify-end mt-8">
                         <button
                             type="submit"
                             disabled={processing}
-                            className="px-6 py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium"
+                            className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white rounded-lg font-medium shadow-lg hover:shadow-xl transition-all duration-200"
                         >
-                            Parametri Yadda Saxla
+                            {processing ? 'Saxlanılır...' : 'Parametrləri Yadda Saxla'}
                         </button>
                     </div>
                 </form>

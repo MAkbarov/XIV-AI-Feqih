@@ -11,8 +11,8 @@
 return [
     'name' => 'XIV AI Fəqih',
     'version' => '',
-    'build' => '20251010656',
-    'release_date' => '10.10.2025',
+    'build' => '20251011334',
+    'release_date' => '11.10.2025',
     'author' => 'DeXIV',
     'website' => 'https://dexiv.me',
     'description' => 'Advanced AI Chatbot Platform powered by Laravel and React',
@@ -39,6 +39,9 @@ return [
         'Multi-language Support',
     ]
 ];
+
+
+
 
 
 

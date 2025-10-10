@@ -147,6 +147,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::put('/ai-training/knowledge/{id}', [\App\Http\Controllers\Admin\AiTrainingController::class, 'updateKnowledge'])->name('ai-training.knowledge.update');
     Route::post('/ai-training/knowledge/{id}/toggle', [\App\Http\Controllers\Admin\AiTrainingController::class, 'toggleKnowledge'])->name('ai-training.knowledge.toggle');
     Route::post('/ai-training/knowledge/{id}/delete', [\App\Http\Controllers\Admin\AiTrainingController::class, 'deleteKnowledge'])->name('ai-training.knowledge.delete');
+    Route::delete('/ai-training/knowledge/all', [\App\Http\Controllers\Admin\AiTrainingController::class, 'deleteAllKnowledge'])->name('ai-training.knowledge.delete-all');
 
     // Knowledge Categories Management (Admin)
     Route::get('/ai-training/categories', [\App\Http\Controllers\Admin\KnowledgeCategoryController::class, 'index'])->name('ai-training.categories.index');

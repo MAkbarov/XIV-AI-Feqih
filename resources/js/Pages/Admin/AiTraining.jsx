@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Head, useForm } from '@inertiajs/react';
+import { Head, useForm, router } from '@inertiajs/react';
 import AdminLayout from '@/Layouts/AdminLayout';
 import { motion } from 'framer-motion';
 import Icon from '@/Components/Icon';
@@ -175,16 +175,45 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
     React.useEffect(() => {
         loadCategories();
     }, []);
+    
+    // Sahifə ayrılma qadağası - URL training zamanı
+    React.useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (isTrainingInProgress) {
+                const message = 'URL training davam edir. Sahifəni tərk etsəniz training dayandırılacaq. Əminsiniz?';
+                e.preventDefault();
+                e.returnValue = message; // Chrome üçün
+                return message; // Digər browser-lər üçün
+            }
+        };
+        
+        const handleUnload = () => {
+            if (isTrainingInProgress && progressToken) {
+                // Training-i dayandır
+                stopTraining();
+            }
+        };
+        
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        window.addEventListener('unload', handleUnload);
+        
+        return () => {
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            window.removeEventListener('unload', handleUnload);
+        };
+    }, [isTrainingInProgress, progressToken]);
     const [urlTrainingData, setUrlTrainingData] = useState({ 
         url: '', 
         single: true, 
         maxDepth: 1, 
+        level: 3,  // 🆕 Yeni parametr: xülasə səviyyəsi
         category: 'imported', 
         source: '' 
     });
     const [urlProgress, setUrlProgress] = useState(0);
     const [stopping, setStopping] = useState(false);
     const [progressToken, setProgressToken] = useState(null);
+    const [isTrainingInProgress, setIsTrainingInProgress] = useState(false); // URL training status
     const [qaTrainingData, setQaTrainingData] = useState({
         question: '',
         answer: '',
@@ -395,6 +424,74 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
             });
     };
     
+    // URL training-i dayandırmaq üçün funksiya
+    const stopTraining = async () => {
+        if (progressToken) {
+            try {
+                const stopKey = 'url_train:stop:' + progressToken;
+                await axios.post('/admin/ai-training/import-stop', {
+                    progress_token: progressToken,
+                    stop_key: stopKey
+                });
+                console.log('Training dayandırıldı:', progressToken);
+            } catch (error) {
+                console.error('Training dayandırma xətası:', error);
+            }
+        }
+    };
+    
+    // Bütün məlumatları sil funksiyası
+    const handleDeleteAllKnowledge = async () => {
+        const confirmed = await confirm({
+            title: 'Təhlükəli Əməliyyat: Bütün Bilik Bazasını Sil',
+            message: `DIQQET! Bu əməliyyat tamamən geri alına bilməz!\n\nSiləcəklər:\n\n• Bütün məlumatlar\n• Bütün öyrədilmiş URL-lər\n• Bütün Q&A elementləri\n• Bütün manual əlavələr\n• Bütün kateqoriya məlumatları\n\nBu əməliyyat geri QAYTARILA BILMəZ!\n\nRazısınız?`,
+            confirmText: 'İnənim! Bütün Məlumatları Sil!',
+            cancelText: 'Xeyr, Ləğv Et',
+            type: 'danger'
+        });
+        
+        if (confirmed) {
+            try {
+                console.log('DELETE ALL REQUEST BAŞLAYIR...');
+                toast.info('Bütün məlumatlar silinir, gözləyin...');
+                
+                console.log('Sending DELETE request to: /admin/ai-training/knowledge/all');
+                // Inertia router istəfadə edərək CSRF token avtomatik göndəriləcək
+                console.log('Inertia router DELETE istifadə edilir...');
+                
+                // Daha sadə Promise wrapper
+                await new Promise((resolve, reject) => {
+                    router.delete('/admin/ai-training/knowledge/all', {
+                        onSuccess: (data) => {
+                            console.log('Inertia success:', data);
+                            toast.success('Əuladur! Bütün bilik bazası təmizləndi!');
+                            // Səhifəni avtomatik yenilə
+                            setTimeout(() => {
+                                window.location.reload();
+                            }, 2000);
+                            resolve();
+                        },
+                        onError: (errors) => {
+                            console.error('Inertia error:', errors);
+                            const errorMsg = Object.values(errors).join(', ') || 'Bütün məlumatları silərkən xəta baş verdi!';
+                            toast.error(`Xəta: ${errorMsg}`);
+                            reject(new Error(errorMsg));
+                        },
+                        onFinish: () => {
+                            console.log('ℹ️ Inertia request finished');
+                        }
+                    });
+                });
+                
+            } catch (error) {
+                console.error('Delete all knowledge error:', error);
+                if (!error.message.includes('Xəta:')) {
+                    toast.error(`Xəta: ${error.message}`);
+                }
+            }
+        }
+    };
+    
     // Advanced Training Methods
     const handleAdvancedUrlTraining = async () => {
         if (!urlTrainingData.url) {
@@ -403,6 +500,7 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
         }
         
         setTrainingInProgress(true);
+        setIsTrainingInProgress(true); // Sahifə ayrılma qadağası aktiv et
         setUrlProgress(0);
 
         // Unique progress token per request
@@ -410,8 +508,8 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
         setProgressToken(token);
         
         const trainingMessage = urlTrainingData.single 
-            ? `🚀 "${urlTrainingData.url}" əzbərlənmə başlanır...`
-            : `🚀 "${urlTrainingData.url}" və bütün əlaqəli səhifələr əzbərlənmə başlanır...`;
+            ? `"${urlTrainingData.url}" əzbərlənmə başlanır...`
+            : `"${urlTrainingData.url}" və bütün əlaqəli səhifələr əzbərlənmə başlanır...`;
             
         toast.info(trainingMessage);
         
@@ -462,6 +560,7 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
                 url: urlTrainingData.url,
                 single: urlTrainingData.single,
                 max_depth: urlTrainingData.maxDepth,
+                level: urlTrainingData.level, // Xülasə səviyyəsi: 1-4 xülasə, 5 tam məzmun
                 category: urlTrainingData.category,
                 source: urlTrainingData.source || 'Advanced URL Training',
                 progress_token: token
@@ -471,8 +570,8 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
                 setUrlProgress(100);
                 const pagesCount = response.data.trained_pages || 1;
                 const successMessage = urlTrainingData.single
-                    ? `✅ Link uğurla əzbərləndi! AI indi bu məzmunu bilir.`
-                    : `✅ ${pagesCount} səhifə uğurla əzbərləndi! Sayt tamamilə AI-yə öyrədildi.`;
+                    ? `Link uğurla əzbərləndi! AI indi bu məzmunu bilir.`
+                    : `${pagesCount} səhifə uğurla əzbərləndi! Sayt tamamilə AI-yə öyrədildi.`;
                     
                 toast.success(successMessage);
                 
@@ -481,18 +580,22 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
                     url: '', 
                     single: true, 
                     maxDepth: 1, 
+                    level: 3, // Default level: orta (50%)
                     category: 'imported', 
                     source: '' 
                 });
                 
-                // Don't reload - let user see result and manually refresh if needed
+                // ✅ Səhifəni yenilə ki yeni statistika və URL-lər görünsün
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000); // 2 saniyə gözlə ki user mesajı görsün
             }
         } catch (error) {
             console.error('Advanced URL Training error:', error);
             const errorMsg = error.response?.data?.message || 'Advanced URL training xətası!';
             const debugInfo = error.response?.data?.debug;
             
-            let fullErrorMsg = `❌ ${errorMsg}`;
+            let fullErrorMsg = errorMsg;
             if (debugInfo) {
                 console.log('Debug Info:', debugInfo);
                 if (!debugInfo.curl_available) {
@@ -507,6 +610,7 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
             // Stop polling and reset state
             if (poller) clearInterval(poller);
             setTrainingInProgress(false);
+            setIsTrainingInProgress(false); // Sahifə ayrılma qadağasını deaktiv et
             setStopping(false);
             setProgressToken(null);
         }
@@ -519,12 +623,12 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
         }
         
         setTrainingInProgress(true);
-        toast.info(`❓ Q&A Training başlanır...`);
+        toast.info('Q&A Training başlanır...');
         
         try {
             const response = await axios.post('/admin/ai-training/qa', qaTrainingData);
             
-            toast.success('✅ Sual-Cavab uğurla əzbərləndi!');
+            toast.success('Sual-Cavab uğurla əzbərləndi!');
             
             // Reset form
             setQaTrainingData({
@@ -539,7 +643,7 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
         } catch (error) {
             console.error('Q&A Training error:', error);
             const errorMsg = error.response?.data?.message || 'Q&A training xətası!';
-            toast.error(`❌ ${errorMsg}`);
+            toast.error(errorMsg);
         } finally {
             setTrainingInProgress(false);
         }
@@ -552,7 +656,7 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
         }
         
         setTrainingInProgress(true);
-        toast.info(`📝 Text Training başlanır...`);
+        toast.info('Text Training başlanır...');
         
         try {
             const response = await axios.post('/admin/ai-training/knowledge', {
@@ -564,7 +668,7 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
                 language: 'az'
             });
             
-            toast.success('✅ Mətn uğurla əzbərləndi!');
+            toast.success('Mətn uğurla əzbərləndi!');
             
             // Reset form
             setTextTrainingData({
@@ -579,7 +683,7 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
         } catch (error) {
             console.error('Text Training error:', error);
             const errorMsg = error.response?.data?.message || 'Text training xətası!';
-            toast.error(`❌ ${errorMsg}`);
+            toast.error(errorMsg);
         } finally {
             setTrainingInProgress(false);
         }
@@ -923,10 +1027,24 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
                             animate={{ opacity: 1, x: 0 }}
                             className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg rounded-2xl shadow-xl p-8 border border-gray-200 dark:border-gray-700"
                         >
-                            <h2 className="text-2xl font-bold mb-6 text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                                <Icon name="feature_ai" size={28} color="#9333ea" />
-                                Bilik Bazası
-                            </h2>
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                                    <Icon name="feature_ai" size={28} color="#9333ea" />
+                                    Bilik Bazası
+                                </h2>
+                                
+                                {/* Bütün məlumatları sil butonu */}
+                                {knowledgeItems && knowledgeItems.length > 0 && (
+                                    <button
+                                        onClick={handleDeleteAllKnowledge}
+                                        className="px-4 py-2 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-200 flex items-center gap-2"
+                                        title="Bütün bilik bazasını təmizlə"
+                                    >
+                                        <Icon name="trash" size={16} />
+                                        Bütün məlumatları sil
+                                    </button>
+                                )}
+                            </div>
 
                             {/* Add/Edit Knowledge Form */}
                             <form id="knowledge-form" onSubmit={handleSubmitKnowledge} className={`mb-8 p-6 rounded-xl ${
@@ -1683,39 +1801,76 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
                             />
                         </div>
 
-                        {/* Training Type and Depth Selection */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {/* Training Type and Options */}
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            {/* Metod Seçimi */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Təlimat Məlumatı</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                                    <Icon name="feature_ai" size={16} />
+                                    İmport Metodu
+                                </label>
                                 <select 
                                     value={urlTrainingData.single ? 'single' : 'full'}
                                     onChange={(e) => setUrlTrainingData({ ...urlTrainingData, single: e.target.value === 'single' })}
                                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                 >
-                                    <option value="single">Tək səhifə</option>
-                                    <option value="full">Bütün sayt</option>
+                                    <option value="single">Metod 1: Tək URL</option>
+                                    <option value="full">Metod 2: Bütün URL</option>
                                 </select>
                             </div>
                             
+                            {/* Xülasə Səviyyəsi - hər iki metod üçün */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                                    <Icon name="chart" size={16} />
+                                    Xülasə Səviyyəsi
+                                </label>
+                                <select 
+                                    value={urlTrainingData.level}
+                                    onChange={(e) => setUrlTrainingData({ ...urlTrainingData, level: parseInt(e.target.value, 10) })}
+                                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                                >
+                                    <option value={1}>Səviyyə 1 (15% - ən qısa)</option>
+                                    <option value={2}>Səviyyə 2 (30% - qısa)</option>
+                                    <option value={3}>Səviyyə 3 (50% - orta)</option>
+                                    <option value={4}>Səviyyə 4 (75% - uzun)</option>
+                                    <option value={5}>Səviyyə 5 (100% - tam məzmun)</option>
+                                </select>
+                                <div className="text-xs text-gray-500 mt-1">
+                                    {urlTrainingData.level < 5 ? 'AI tərəfindən xülasələşdiriləcək' : 'Tam məzmun (xülasələşmə yox)'}
+                                </div>
+                            </div>
+                            
+                            {/* Dərinlik - yalnız Metod 2 üçün */}
                             {!urlTrainingData.single && (
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Səviyyə</label>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                                        <Icon name="link" size={16} />
+                                        URL Daxili Linklər
+                                    </label>
                                     <select 
                                         value={urlTrainingData.maxDepth}
                                         onChange={(e) => setUrlTrainingData({ ...urlTrainingData, maxDepth: parseInt(e.target.value, 10) })}
                                         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                                     >
-                                        <option value={1}>Səviyyə 1 (Səthi)</option>
-                                        <option value={2}>Səviyyə 2</option>
-                                        <option value={3}>Səviyyə 3 (Orta)</option>
-                                        <option value={4}>Səviyyə 4</option>
-                                        <option value={5}>Səviyyə 5 (Dərin)</option>
+                                        <option value={1}>Səthi axtariş</option>
+                                        <option value={2}>Orta axtariş</option>
+                                        <option value={3}>Dərin axtariş (ən yaxşı)</option>
+                                        <option value={4}>Tam axtariş</option>
+                                        <option value={5}>Möhtəşəm axtariş</option>
                                     </select>
+                                    <div className="text-xs text-gray-500 mt-1">
+                                        Verilən URL daxilindəki bütün linkləri tapir (dərinlik məhdudiyyəti yoxdur)
+                                    </div>
                                 </div>
                             )}
                             
+                            {/* Kateqoriya */}
                             <div className={!urlTrainingData.single ? '' : 'md:col-span-2'}>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kateqoriya</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                                    <Icon name="type" size={16} />
+                                    Kateqoriya
+                                </label>
                                 <select 
                                     value={urlTrainingData.category} 
                                     onChange={(e) => setUrlTrainingData({ ...urlTrainingData, category: e.target.value })}
@@ -1726,6 +1881,52 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
                                         <option key={c.value} value={c.value}>{c.label}</option>
                                     ))}
                                 </select>
+                            </div>
+                        </div>
+                        
+                        {/* İzah cardı */}
+                        <div className={`p-4 rounded-xl border-2 ${
+                            urlTrainingData.single 
+                                ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-600' 
+                                : 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-600'
+                        }`}>
+                            <div className="flex items-start gap-3">
+                                <div className="p-2 rounded-lg ${
+                                    urlTrainingData.single 
+                                        ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' 
+                                        : 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400'
+                                }">
+                                    <Icon name={urlTrainingData.single ? 'edit' : 'link'} size={20} />
+                                </div>
+                                <div>
+                                    <h4 className={`font-semibold mb-2 ${
+                                        urlTrainingData.single 
+                                            ? 'text-blue-800 dark:text-blue-300' 
+                                            : 'text-green-800 dark:text-green-300'
+                                    }`}>
+                                        {urlTrainingData.single ? 'Metod 1: Tək URL' : 'Metod 2: Bütün URL'}
+                                    </h4>
+                                    <p className={`text-sm ${
+                                        urlTrainingData.single 
+                                            ? 'text-blue-700 dark:text-blue-300' 
+                                            : 'text-green-700 dark:text-green-300'
+                                    }`}>
+                                        {urlTrainingData.single 
+                                            ? 'Yalnız verilən URL-in içindəki məzmunu çəkir və əzbərləyir. Tək səhifə üçün ideal.' 
+                                            : 'Verilən URL-in "qovluğu" daxilindəki bütün linkləri tapır və onların məzmununu əzbərləyir. Dərinlik məhdudiyyəti yoxdur.'
+                                        }
+                                    </p>
+                                    <div className="mt-2 flex items-center gap-2 text-xs font-medium">
+                                        <Icon name="chart" size={12} />
+                                        Səviyyə {urlTrainingData.level}: {urlTrainingData.level < 5 ? 'AI xülasəsi' : 'Tam məzmun'}
+                                        {!urlTrainingData.single && (
+                                            <>
+                                                <Icon name="link" size={12} className="ml-2" />
+                                                URL daxili bütün linklər
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         
