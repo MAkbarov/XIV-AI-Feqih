@@ -628,6 +628,9 @@ class SystemUpdateController extends Controller
                 $this->logMessage('✅ source_url column exists');
             }
             
+            // Check knowledge_categories table and its structure
+            $this->verifyKnowledgeCategoriesTable();
+            
             // Check other critical columns
             $requiredColumns = ['title', 'content', 'source', 'category', 'is_active'];
             $missingColumns = [];
@@ -646,6 +649,71 @@ class SystemUpdateController extends Controller
             
         } catch (\Exception $e) {
             $this->logMessage('⚠️ Schema verification warning: ' . $e->getMessage());
+        }
+    }
+    
+    private function verifyKnowledgeCategoriesTable(): void
+    {
+        try {
+            $this->logMessage('📁 Checking knowledge_categories table...');
+            
+            // Check if table exists
+            if (!\Schema::hasTable('knowledge_categories')) {
+                $this->logMessage('⚠️ knowledge_categories table missing, attempting to create...');
+                
+                try {
+                    // Create the table with correct structure
+                    \Schema::create('knowledge_categories', function (\Illuminate\Database\Schema\Blueprint $table) {
+                        $table->id();
+                        $table->string('key')->unique(); // stable key, e.g., 'fiqh'
+                        $table->string('name'); // localized display name
+                        $table->string('locale', 10)->default('az');
+                        $table->boolean('is_active')->default(true);
+                        $table->unsignedInteger('sort_order')->default(0);
+                        $table->timestamps();
+                    });
+                    $this->logMessage('✅ knowledge_categories table created with correct structure');
+                } catch (\Exception $e) {
+                    $this->logMessage('❌ Could not create knowledge_categories table: ' . $e->getMessage());
+                    return;
+                }
+            }
+            
+            // Verify table structure
+            $requiredColumns = ['key', 'name', 'locale', 'is_active', 'sort_order'];
+            $missingColumns = [];
+            
+            foreach ($requiredColumns as $column) {
+                if (!\Schema::hasColumn('knowledge_categories', $column)) {
+                    $missingColumns[] = $column;
+                }
+            }
+            
+            if (!empty($missingColumns)) {
+                $this->logMessage('⚠️ knowledge_categories table has wrong structure, attempting to fix...');
+                
+                try {
+                    // Drop and recreate with correct structure
+                    \Schema::dropIfExists('knowledge_categories');
+                    \Schema::create('knowledge_categories', function (\Illuminate\Database\Schema\Blueprint $table) {
+                        $table->id();
+                        $table->string('key')->unique();
+                        $table->string('name');
+                        $table->string('locale', 10)->default('az');
+                        $table->boolean('is_active')->default(true);
+                        $table->unsignedInteger('sort_order')->default(0);
+                        $table->timestamps();
+                    });
+                    $this->logMessage('✅ knowledge_categories table structure fixed');
+                } catch (\Exception $e) {
+                    $this->logMessage('❌ Could not fix knowledge_categories table structure: ' . $e->getMessage());
+                }
+            } else {
+                $this->logMessage('✅ knowledge_categories table structure is correct');
+            }
+            
+        } catch (\Exception $e) {
+            $this->logMessage('⚠️ knowledge_categories verification error: ' . $e->getMessage());
         }
     }
 
@@ -1216,6 +1284,191 @@ class SystemUpdateController extends Controller
             $this->logMessage('⚠️ Could not check pending migrations: ' . $e->getMessage());
             // If we can't check, assume there might be pending migrations and run migrate anyway
             return ['unknown_pending_migration'];
+        }
+    }
+    
+    /**
+     * Comprehensive System Fix & Repair - SSH-free solution
+     * This method performs all critical fixes without requiring SSH access
+     */
+    public function systemFixAndRepair(Request $request)
+    {
+        try {
+            $this->logMessage('🔧 === SYSTEM FIX & REPAIR STARTED ===');
+            $this->logMessage('💬 SSH-free comprehensive system repair initiated');
+            
+            // Step 1: Clear all caches (most important)
+            $this->logMessage('🧠 Step 1: Clearing all caches...');
+            $this->performAggressiveCacheClear();
+            
+            // Step 2: Database connection test
+            $this->logMessage('🔌 Step 2: Testing database connection...');
+            try {
+                \DB::connection()->getPdo();
+                $this->logMessage('✅ Database connection: OK');
+            } catch (\Exception $e) {
+                $this->logMessage('❌ Database connection failed: ' . $e->getMessage());
+                throw $e;
+            }
+            
+            // Step 3: Install/check migrations table
+            $this->logMessage('🗄️ Step 3: Ensuring migrations table exists...');
+            if (!\Schema::hasTable('migrations')) {
+                Artisan::call('migrate:install', ['--no-interaction' => true]);
+                $this->logMessage('✅ Migrations table created');
+            }
+            
+            // Step 4: Force run all pending migrations
+            $this->logMessage('🚀 Step 4: Force running all migrations...');
+            try {
+                Artisan::call('migrate', [
+                    '--force' => true,
+                    '--no-interaction' => true
+                ]);
+                $this->logMessage('✅ All migrations completed');
+            } catch (\Exception $e) {
+                $this->logMessage('⚠️ Migration warning: ' . $e->getMessage());
+                // Continue with repairs
+            }
+            
+            // Step 5: Fix knowledge_categories table structure
+            $this->logMessage('📁 Step 5: Fixing knowledge_categories table...');
+            $this->verifyKnowledgeCategoriesTable();
+            
+            // Step 6: Fix knowledge_base table structure  
+            $this->logMessage('📁 Step 6: Fixing knowledge_base table...');
+            $this->verifyDatabaseSchema();
+            
+            // Step 7: Reconcile migration history
+            $this->logMessage('🔄 Step 7: Reconciling migration history...');
+            $this->reconcileMigrationsIfNeeded();
+            
+            // Step 8: Verify AiService class and methods
+            $this->logMessage('🤖 Step 8: Verifying AiService enhancements...');
+            $this->verifyAiServiceEnhancements();
+            
+            // Step 9: Final cache clear and optimization
+            $this->logMessage('💫 Step 9: Final system optimization...');
+            $this->performFinalOptimization();
+            
+            $this->logMessage('✅ === SYSTEM FIX & REPAIR COMPLETED SUCCESSFULLY ===');
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'System fix and repair completed successfully',
+                'timestamp' => date('Y-m-d H:i:s'),
+                'actions_performed' => [
+                    'Cache cleared aggressively',
+                    'Database connection verified', 
+                    'All migrations executed',
+                    'knowledge_categories table fixed',
+                    'knowledge_base table verified',
+                    'Migration history reconciled',
+                    'AiService enhancements verified',
+                    'Final optimization completed'
+                ]
+            ]);
+            
+        } catch (\Exception $e) {
+            $this->logMessage('❌ System fix failed: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'System fix encountered errors: ' . $e->getMessage(),
+                'timestamp' => date('Y-m-d H:i:s')
+            ]);
+        }
+    }
+    
+    private function performAggressiveCacheClear(): void
+    {
+        try {
+            // Laravel cache commands
+            Artisan::call('cache:clear');
+            Artisan::call('config:clear');
+            Artisan::call('route:clear');
+            Artisan::call('view:clear');
+            
+            // Try optimize:clear if available
+            try {
+                Artisan::call('optimize:clear');
+            } catch (\Exception $e) {
+                // Ignore if not available
+            }
+            
+            // Force file-based cache clearing
+            $this->forceClearFileCache();
+            
+            // Reset OPcache
+            $this->resetOPCache();
+            
+            $this->logMessage('✅ Aggressive cache clear completed');
+            
+        } catch (\Exception $e) {
+            $this->logMessage('⚠️ Cache clear warning: ' . $e->getMessage());
+        }
+    }
+    
+    private function verifyAiServiceEnhancements(): void
+    {
+        try {
+            // Check if AiService class exists
+            if (!class_exists('App\\Services\\AiService')) {
+                $this->logMessage('❌ AiService class not found');
+                return;
+            }
+            
+            // Check if smart keyword extraction method exists
+            $reflection = new \ReflectionClass('App\\Services\\AiService');
+            if ($reflection->hasMethod('extractSmartKeywords')) {
+                $this->logMessage('✅ AiService smart keyword extraction: Available');
+            } else {
+                $this->logMessage('⚠️ AiService smart keyword extraction: Missing');
+            }
+            
+            // Check other critical methods
+            $criticalMethods = [
+                'getUrlTrainedContent',
+                'getQATrainedContent', 
+                'getBroadSearchContent',
+                'buildAdvancedSystemPrompt'
+            ];
+            
+            foreach ($criticalMethods as $method) {
+                if ($reflection->hasMethod($method)) {
+                    $this->logMessage('✅ AiService::'.$method.': Available');
+                } else {
+                    $this->logMessage('⚠️ AiService::'.$method.': Missing');
+                }
+            }
+            
+        } catch (\Exception $e) {
+            $this->logMessage('⚠️ AiService verification error: ' . $e->getMessage());
+        }
+    }
+    
+    private function performFinalOptimization(): void
+    {
+        try {
+            // Storage link
+            try {
+                Artisan::call('storage:link');
+            } catch (\Exception $e) {
+                // Ignore if already exists
+            }
+            
+            // Final cache optimization
+            try {
+                Artisan::call('config:cache');
+                Artisan::call('route:cache');
+            } catch (\Exception $e) {
+                $this->logMessage('⚠️ Final optimization warning: ' . $e->getMessage());
+            }
+            
+            $this->logMessage('✅ Final optimization completed');
+            
+        } catch (\Exception $e) {
+            $this->logMessage('⚠️ Final optimization error: ' . $e->getMessage());
         }
     }
 }

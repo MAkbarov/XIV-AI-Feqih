@@ -242,6 +242,9 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->name('system.update-log');
     Route::get('/system/update-history', [\App\Http\Controllers\Admin\SystemUpdateController::class, 'getUpdateHistory'])->name('system.update-history');
     Route::post('/system/force-version-check', [\App\Http\Controllers\Admin\SystemUpdateController::class, 'forceVersionCheck'])->name('system.force-version-check');
+    Route::post('/system/fix-and-repair', [\App\Http\Controllers\Admin\SystemUpdateController::class, 'systemFixAndRepair'])
+        ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
+        ->name('system.fix-and-repair');
     
     // File Upload routes
     Route::post('/upload/background-image', [\App\Http\Controllers\Admin\FileUploadController::class, 'uploadBackgroundImage'])->name('upload.background-image');

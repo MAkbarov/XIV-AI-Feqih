@@ -1,6 +1,6 @@
 {
     "name": "XIV AI Fəqih",
-    "version": "1.0.7",
+    "version": "1.0.8",
     "initial_version": "1.0.0",
     "release_date": "2025-10-10",
     "author": {
@@ -14,15 +14,16 @@
         "repository": "https://github.com/MAkbarov/XIV-AI-Feqih"
     },
     "changes": [
-        "FIXED: Kateqoriya əlavə etmə xətası - knowledge_categories cədvəli migration-ı həll edildi",
-        "ENHANCED: Chatbot axtarış sistemi - smart keyword extraction və multi-tier search",
-        "NEW: Smart keyword extraction metodunu əlavə edildi - daha dəqiq axtarış",
-        "IMPROVED: AI cavab fokusunu təkmilləşdirildi - yəni fokus qaydalar və sual analizi",
-        "ENHANCED: Üç-pilleli axtarış sistemi - exact phrase, important keywords, broad search",
-        "OPTIMIZED: Religious term prioritization - İslam terminləri üstünlük verir",
-        "FOCUSED: AI responses - yalnız konkret sualları cavablandırır, uzun siyahılardan qaçınır",
-        "PREVIOUS: v1.0.5 - Critical migration execution order fix",
-        "PREVIOUS: v1.0.4 - Aggressive cache clearing and schema verification"
+        "BREAKTHROUGH: SSH-free 'Fiksasiya və Bərpa' butonu əlavə edildi - sistem problemlərini web paneləndən həll edir",
+        "NEW: Comprehensive system repair API - migration, cache, database schema auto-fix",
+        "ENHANCED: knowledge_categories table auto-creation and structure verification",
+        "IMPROVED: Database schema verification with automatic column addition",
+        "AUTOMATED: AiService enhancement verification - smart keyword methods check",
+        "POWERFUL: 9-step system repair process without SSH dependency",
+        "FIXED: Migration reconciliation enhanced for hosting environment compatibility",
+        "ROBUST: Full-stack solution for hosting providers without SSH access",
+        "PREVIOUS: v1.0.7 - Smart keyword extraction and multi-tier search",
+        "PREVIOUS: v1.0.6 - Development version preparation"
     ],
     "requirements": {
         "php": ">=8.1",
@@ -30,5 +31,5 @@
         "mysql": ">=5.7",
         "node": ">=16.0"
     },
-    "update_notes": "Enhanced chatbot accuracy v1.0.7: Major improvements to AI search and response systems. Fixed category creation issues, implemented smart keyword extraction for better search accuracy, and enhanced AI response focus to provide more targeted answers. The system now analyzes queries intelligently and avoids giving overly broad responses when specific questions are asked."
+    "update_notes": "Revolutionary SSH-free deployment v1.0.8: Breakthrough 'Fiksasiya və Bərpa' (Fix & Repair) system enables comprehensive problem resolution directly from web panel. No more SSH dependency! Features 9-step automated repair process including migration execution, database schema fixes, cache clearing, and AiService verification. Perfect for hosting providers and non-technical administrators."
 }
