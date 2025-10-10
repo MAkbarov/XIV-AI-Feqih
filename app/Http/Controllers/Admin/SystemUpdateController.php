@@ -558,22 +558,27 @@ class SystemUpdateController extends Controller
             \DB::connection()->getPdo();
             $this->logMessage('🔌 Database connection verified');
 
-            // FIRST: Run real migrations to ensure schema is up-to-date
-            $this->logMessage('🗄️ Running fresh migrations...');
+            // FIRST: Reconcile migrations ONLY if needed (avoid fake marking new migrations)
+            $pendingMigrations = $this->getPendingMigrations();
             
-            try {
-                Artisan::call('migrate', [
-                    '--force' => true,
-                    '--no-interaction' => true
-                ]);
-                $this->logMessage('✅ Fresh migrations completed');
-            } catch (\Exception $migrationError) {
-                $this->logMessage('⚠️ Fresh migration error: ' . $migrationError->getMessage());
-                // Continue with reconciliation as fallback
+            if (empty($pendingMigrations)) {
+                $this->logMessage('ℹ️ No pending migrations, running reconciliation...');
+                $this->reconcileMigrationsIfNeeded();
+            } else {
+                $this->logMessage('🗄️ Found ' . count($pendingMigrations) . ' pending migrations, running fresh migrations...');
+                
+                try {
+                    Artisan::call('migrate', [
+                        '--force' => true,
+                        '--no-interaction' => true
+                    ]);
+                    $this->logMessage('✅ Fresh migrations completed');
+                } catch (\Exception $migrationError) {
+                    $this->logMessage('⚠️ Fresh migration error: ' . $migrationError->getMessage());
+                    // Try reconciliation as fallback
+                    $this->reconcileMigrationsIfNeeded();
+                }
             }
-            
-            // SECOND: Reconcile migrations if schema exists but migration history is missing/mismatched
-            $this->reconcileMigrationsIfNeeded();
             
             // THIRD: Verify critical columns exist
             $this->verifyDatabaseSchema();
@@ -1178,6 +1183,39 @@ class SystemUpdateController extends Controller
                 'message' => 'History retrieval failed: ' . $e->getMessage(),
                 'items' => [],
             ]);
+        }
+    }
+    
+    private function getPendingMigrations(): array
+    {
+        try {
+            // Use artisan command to get pending migrations
+            Artisan::call('migrate:status');
+            $output = Artisan::output();
+            
+            $pendingMigrations = [];
+            $lines = explode("\n", trim($output));
+            
+            foreach ($lines as $line) {
+                $line = trim($line);
+                // Look for lines that contain "Pending" status
+                if (str_contains($line, 'Pending') && !str_contains($line, 'Migration name')) {
+                    // Extract migration name from status line
+                    if (preg_match('/\|\s*Pending\s*\|\s*(.+?)\s*\|/', $line, $matches)) {
+                        $pendingMigrations[] = trim($matches[1]);
+                    } elseif (preg_match('/Pending.*?([0-9]{4}_[0-9]{2}_[0-9]{2}_[0-9]{6}_.*?)\s*$/', $line, $matches)) {
+                        $pendingMigrations[] = trim($matches[1]);
+                    }
+                }
+            }
+            
+            $this->logMessage('🔍 Found ' . count($pendingMigrations) . ' pending migrations');
+            return $pendingMigrations;
+            
+        } catch (\Exception $e) {
+            $this->logMessage('⚠️ Could not check pending migrations: ' . $e->getMessage());
+            // If we can't check, assume there might be pending migrations and run migrate anyway
+            return ['unknown_pending_migration'];
         }
     }
 }

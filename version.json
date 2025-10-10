@@ -1,6 +1,6 @@
 {
     "name": "XIV AI Fəqih",
-    "version": "1.0.4",
+    "version": "1.0.5",
     "initial_version": "1.0.0",
     "release_date": "2025-10-10",
     "author": {
@@ -14,14 +14,14 @@
         "repository": "https://github.com/MAkbarov/XIV-AI-Feqih"
     },
     "changes": [
-        "BREAKTHROUGH: Aggressive cache clearing for hosting environments",
-        "FIX: Real migration execution instead of just reconciliation",
-        "NEW: Direct database schema verification and column addition",
-        "IMPROVEMENT: Force OPcache/APC/WinCache reset during updates",
-        "FIX: Bootstrap and storage cache file clearing",
-        "NEW: Autoload file touching to force PHP class reload",
-        "ENHANCEMENT: Database column existence verification",
-        "CRITICAL: source_url column auto-addition if missing",
+        "CRITICAL FIX: Migration execution order corrected - real migrations run BEFORE reconciliation",
+        "NEW: getPendingMigrations() method to check for pending migrations before reconciliation",
+        "FIX: Prevents fake marking of new migrations that haven't been applied",
+        "IMPROVEMENT: Smart migration handling - only reconcile if no pending migrations",
+        "BREAKTHROUGH: Aggressive cache clearing for hosting environments (v1.0.4)",
+        "FIX: Real migration execution with schema verification (v1.0.4)",
+        "NEW: Direct database schema verification and column addition (v1.0.4)",
+        "CRITICAL: source_url column auto-addition if missing (v1.0.4)",
         "PREVIOUS: v1.0.3 safe database handling improvements"
     ],
     "requirements": {
@@ -30,5 +30,5 @@
         "mysql": ">=5.7",
         "node": ">=16.0"
     },
-    "update_notes": "Breakthrough release v1.0.4: Aggressive system optimization for hosting environments. Real migration execution, direct database schema fixing, and comprehensive cache clearing. Auto-adds missing database columns. Forces PHP/OPcache reset for immediate code updates."
+    "update_notes": "Critical hotfix v1.0.5: Fixed migration execution order. Now checks for pending migrations first and only runs reconciliation if no pending migrations exist. This prevents marking migrations as run before they're actually applied, ensuring database schema is properly updated. Solves the core issue with source_url column missing on hosting environments."
 }
