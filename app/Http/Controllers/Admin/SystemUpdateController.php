@@ -663,7 +663,7 @@ class SystemUpdateController extends Controller
                 stripos($msg, 'duplicate') !== false) {
                 $this->logMessage('⚠️ Migration warning (continuing): ' . substr($msg, 0, 100));
             } else {
-                $this->logMessage('❌ Database migration failed: ' . $msg);
+                $this->logMessage('❌ Database migration failed:  ' . $msg);
                 // Don't throw - try to continue deployment
             }
         }

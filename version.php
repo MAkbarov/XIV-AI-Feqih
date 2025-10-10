@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 /**
  * XIV AI - Advanced AI Chatbot Platform
@@ -10,8 +10,8 @@
 
 return [
     'name' => 'XIV AI Fəqih',
-    'version' => '1.0.9',
-    'build' => '20251010009',
+    'version' => 'v1.0.11',
+    'build' => '20251010950',
     'release_date' => '10.10.2025',
     'author' => 'DeXIV',
     'website' => 'https://dexiv.me',
@@ -39,3 +39,6 @@ return [
         'Multi-language Support',
     ]
 ];
+
+
+

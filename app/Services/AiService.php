@@ -58,7 +58,7 @@ class AiService
     public function chat(array $messages, ?int $maxTokens = 1000): array
     {
         if (!$this->provider) {
-            throw new Exception('AI provayder konfiqurasiya edilməyib');
+            throw new Exception('AI provayder konfiqurasiya edilməyib.');
         }
 
         // Add knowledge base context if available

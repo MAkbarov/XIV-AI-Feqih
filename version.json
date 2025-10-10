@@ -1,38 +1,38 @@
-{
-    "name": "XIV AI Fəqih",
-    "version": "1.0.9",
-    "initial_version": "1.0.0",
-    "release_date": "2025-10-10",
-    "author": {
-        "name": "DeXIV",
-        "website": "https://dexiv.me"
-    },
-    "project": {
-        "name": "XIV AI Fəqih",
-        "description": "Advanced Islamic AI Chatbot Platform",
-        "homepage": "https://ai.dexiv.me",
-        "repository": "https://github.com/MAkbarov/XIV-AI-Feqih"
-    },
-    "changes": [
-        "CRITICAL FIX: Frontend assets avtomatik deployment - npm olmayan hostinglər üçün həll",
-        "ENHANCED: SystemUpdate avtomatik olaraq prebuilt assets-ləri deploy edir",
-        "INTELLIGENT: Frontend asset verification - SystemUpdate butonu problem detection",
-        "BREAKTHROUGH: SSH-free 'Fiksasiya və Bərpa' butonu əlavə edildi - sistem problemlərini web paneləndən həll edir",
-        "NEW: Comprehensive system repair API - migration, cache, database schema auto-fix",
-        "ENHANCED: knowledge_categories table auto-creation and structure verification",
-        "IMPROVED: Database schema verification with automatic column addition",
-        "AUTOMATED: AiService enhancement verification - smart keyword methods check",
-        "POWERFUL: 9-step system repair process without SSH dependency",
-        "FIXED: Migration reconciliation enhanced for hosting environment compatibility",
-        "ROBUST: Full-stack solution for hosting providers without SSH access",
-        "PREVIOUS: v1.0.7 - Smart keyword extraction and multi-tier search",
-        "PREVIOUS: v1.0.6 - Development version preparation"
-    ],
-    "requirements": {
-        "php": ">=8.1",
-        "laravel": "^9.0",
-        "mysql": ">=5.7",
-        "node": ">=16.0"
-    },
-    "update_notes": "Revolutionary SSH-free deployment v1.0.8: Breakthrough 'Fiksasiya və Bərpa' (Fix & Repair) system enables comprehensive problem resolution directly from web panel. No more SSH dependency! Features 9-step automated repair process including migration execution, database schema fixes, cache clearing, and AiService verification. Perfect for hosting providers and non-technical administrators."
+﻿{
+    "name":  "XIV AI Fəqih",
+    "version":  "v1.0.11",
+    "initial_version":  "1.0.0",
+    "release_date":  "2025-10-10",
+    "author":  {
+                   "name":  "DeXIV",
+                   "website":  "https://dexiv.me"
+               },
+    "project":  {
+                    "name":  "XIV AI Fəqih",
+                    "description":  "Advanced Islamic AI Chatbot Platform",
+                    "homepage":  "https://ai.dexiv.me",
+                    "repository":  "https://github.com/MAkbarov/XIV-AI-Feqih"
+                },
+    "changes":  [
+                    "vv1.0.11: 1.0.11",
+                    "v1.0.11: CRITICAL: Auto-Deploy Assets System - Full automation for hosting",
+                    "v1.0.10: Test deployment fixed script",
+                    "BREAKTHROUGH: SSH-free \u0027Fiksasiya və Bərpa\u0027 butonu əlavə edildi - sistem problemlərini web paneləndən həll edir",
+                    "NEW: Comprehensive system repair API - migration, cache, database schema auto-fix",
+                    "ENHANCED: knowledge_categories table auto-creation and structure verification",
+                    "IMPROVED: Database schema verification with automatic column addition",
+                    "AUTOMATED: AiService enhancement verification - smart keyword methods check",
+                    "POWERFUL: 9-step system repair process without SSH dependency",
+                    "FIXED: Migration reconciliation enhanced for hosting environment compatibility",
+                    "ROBUST: Full-stack solution for hosting providers without SSH access",
+                    "PREVIOUS: v1.0.7 - Smart keyword extraction and multi-tier search",
+                    "PREVIOUS: v1.0.6 - Development version preparation"
+                ],
+    "requirements":  {
+                         "php":  "\u003e=8.1",
+                         "laravel":  "^9.0",
+                         "mysql":  "\u003e=5.7",
+                         "node":  "\u003e=16.0"
+                     },
+    "update_notes":  "Revolutionary SSH-free deployment v1.0.8: Breakthrough \u0027Fiksasiya və Bərpa\u0027 (Fix \u0026 Repair) system enables comprehensive problem resolution directly from web panel. No more SSH dependency! Features 9-step automated repair process including migration execution, database schema fixes, cache clearing, and AiService verification. Perfect for hosting providers and non-technical administrators."
 }
