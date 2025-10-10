@@ -362,7 +362,7 @@ class AiService
                         WHEN title LIKE ? THEN 1 
                         WHEN content LIKE ? THEN 2
                         WHEN title LIKE ? THEN 3
-                        ELSE 4 END', ["%{$exactPhrase}%", "%{$exactPhrase}%", "%{$keywords[0]}%"])
+                        ELSE 4 END', ["%{$exactPhrase}%", "%{$exactPhrase}%", "%" . (isset($keywords[0]) ? $keywords[0] : '') . "%"])
                     ->limit(3)
                     ->get();
             } catch (\Exception $e) {
@@ -588,7 +588,7 @@ class AiService
                     WHEN title LIKE ? THEN 1 
                     WHEN content LIKE ? THEN 2
                     WHEN title LIKE ? THEN 3
-                    ELSE 4 END', ["%{$exactPhrase}%", "%{$exactPhrase}%", "%{$keywords[0] ?? ''}%"])
+                    ELSE 4 END', ["%{$exactPhrase}%", "%{$exactPhrase}%", "%" . (isset($keywords[0]) ? $keywords[0] : '') . "%"])
                 ->limit(3)
                 ->get();
                 
