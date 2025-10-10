@@ -1,6 +1,6 @@
 {
     "name": "XIV AI Fəqih",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "initial_version": "1.0.0",
     "release_date": "2025-10-10",
     "author": {
@@ -14,14 +14,15 @@
         "repository": "https://github.com/MAkbarov/XIV-AI-Feqih"
     },
     "changes": [
+        "FIX: SystemUpdate migration tracking for new database columns",
+        "NEW: Automated migration deployment for hosting environments",
+        "IMPROVEMENT: Enhanced update system to handle schema changes",
         "FIX: Database table name compatibility (knowledge_base vs knowledge_bases)",
         "FIX: Missing source_url column in database schema",
         "FIX: AI Training page pagination showing wrong total count",
-        "FIX: Search functionality displaying filtered results in stats",
         "NEW: Added source_url, metadata, embedding columns to knowledge_base",
-        "IMPROVEMENT: Enhanced database compatibility for hosting deployment",
-        "UPDATE: Improved error handling for missing database columns",
-        "PREVIOUS: XIV AI Fəqih Islamic Chatbot Platform v1.0.0 baseline features"
+        "UPDATE: Improved database migration reconciliation system",
+        "PREVIOUS: v1.0.1 bug fixes and compatibility improvements"
     ],
     "requirements": {
         "php": ">=8.1",
@@ -29,5 +30,5 @@
         "mysql": ">=5.7",
         "node": ">=16.0"
     },
-    "update_notes": "Bug fix release v1.0.1: Fixed database compatibility issues, missing columns, and AI Training page statistics display. Enhanced hosting deployment compatibility."
+    "update_notes": "System Update release v1.0.2: Enhanced automated migration system for hosting environments. Fixed migration tracking for new database columns (source_url, metadata, embedding). Improved schema change deployment compatibility."
 }

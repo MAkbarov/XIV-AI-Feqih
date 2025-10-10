@@ -142,9 +142,18 @@ class KnowledgeBase extends Model
                 ->merge($categoryResults)
                 ->take($limit);
             
-            // Enhanced logging with training source info
+            // Enhanced logging with training source info - SAFE VERSION
             $sourceBreakdown = $finalResults->groupBy(function ($item) {
-                if ($item->source_url) return 'URL_TRAINED';
+                // Safe check for source_url field
+                $hasSourceUrl = false;
+                try {
+                    $hasSourceUrl = !empty($item->source_url);
+                } catch (\Exception $e) {
+                    // source_url field doesn't exist, check source field instead
+                    $hasSourceUrl = $item->source && (str_contains($item->source, 'http') || str_contains($item->source, 'URL'));
+                }
+                
+                if ($hasSourceUrl) return 'URL_TRAINED';
                 if (isset($item->metadata['training_method'])) return 'TEXT_QA_TRAINED';
                 return 'LEGACY';
             })->map->count();

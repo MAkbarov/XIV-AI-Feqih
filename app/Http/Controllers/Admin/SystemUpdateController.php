@@ -637,6 +637,8 @@ class SystemUpdateController extends Controller
                 '2025_10_04_214937_create_admin_notifications_table',
                 '2025_10_05_000000_create_system_update_logs_table',
                 '2025_10_07_000000_create_seo_settings_table',
+                '2025_10_10_080912_rename_knowledge_base_to_knowledge_bases_table',
+                '2025_10_10_081006_add_source_url_to_knowledge_bases_table',
             ];
 
             // If migrations table already has many rows, likely reconciled or installed properly
@@ -672,6 +674,8 @@ class SystemUpdateController extends Controller
                 '2025_10_04_214937_create_admin_notifications_table' => 'admin_notifications',
                 '2025_10_05_000000_create_system_update_logs_table' => 'system_update_logs',
                 '2025_10_07_000000_create_seo_settings_table' => 'seo_settings',
+                '2025_10_10_080912_rename_knowledge_base_to_knowledge_bases_table' => 'knowledge_base',
+                '2025_10_10_081006_add_source_url_to_knowledge_bases_table' => 'knowledge_base',
             ];
 
             foreach ($expectedTimestamped as $mig) {
