@@ -1,6 +1,6 @@
 ﻿{
     "name":  "XIV AI Fəqih",
-    "version":  "v1.0.11",
+    "version":  "v1.0.12",
     "initial_version":  "1.0.0",
     "release_date":  "2025-10-10",
     "author":  {
@@ -14,6 +14,8 @@
                     "repository":  "https://github.com/MAkbarov/XIV-AI-Feqih"
                 },
     "changes":  [
+                    "vv1.0.12: 1.0.12",
+                    "vv1.0.12: v1.0.12",
                     "vv1.0.11: 1.0.11",
                     "v1.0.11: CRITICAL: Auto-Deploy Assets System - Full automation for hosting",
                     "v1.0.10: Test deployment fixed script",

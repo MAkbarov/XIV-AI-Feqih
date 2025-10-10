@@ -302,7 +302,7 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
             const response = await fetch('/admin/system/fix-and-repair', {
                 method: 'POST',
                 headers: {
-                    'Accept': 'application/json',
+                    'Accept': 'text/plain',
                     'Content-Type': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
@@ -311,29 +311,35 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
                 credentials: 'same-origin'
             });
             
-            const data = await response.json();
+            const data = await response.text();
             
-            if (data.success) {
-                setUpdateLog(prev => [...prev, '✅ SSH-free Sistem Bərpası TAMAMLANDI!']);
-                setUpdateLog(prev => [...prev, '📊 İcra edilən əməliyyatlar:']);
-                
-                if (data.actions_performed) {
-                    data.actions_performed.forEach(action => {
-                        setUpdateLog(prev => [...prev, `  ✓ ${action}`]);
-                    });
-                }
-                
-                setUpdateLog(prev => [...prev, '🎉 Sistem problemləri həll olundu!']);
-                setUpdateLog(prev => [...prev, '🔄 3 saniyə sonra səhifə yenilənəcək...']);
+            // Parse the streamed text response
+            const lines = data.split('\n').filter(line => line.trim());
+            
+            // Display all log lines
+            lines.forEach(line => {
+                setUpdateLog(prev => [...prev, line]);
+            });
+            
+            // Check for success/failure markers
+            if (data.includes('[[REPAIR_SUCCESS]]')) {
+                setUpdateLog(prev => [...prev, 'SUCCESS: Sistem problemləri həll olundu!']);
+                setUpdateLog(prev => [...prev, '3 saniyə sonra səhifə yenilənəcək...']);
                 
                 toast.success('Sistem bərpası uğurlu! Səhifə yenilənir...');
                 
                 setTimeout(() => {
                     window.location.reload();
                 }, 3000);
-                
+            } else if (data.includes('[[REPAIR_FAILED]]')) {
+                throw new Error('Sistem bərpası xətalarla tamamlandı');
             } else {
-                throw new Error(data.message || 'Sistem bərpası uğursuz oldu');
+                // If no explicit markers, consider it successful
+                setUpdateLog(prev => [...prev, 'SUCCESS: Sistem bərpası tamamlandı']);
+                toast.success('Sistem bərpası tamamlandı!');
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
             }
             
         } catch (error) {

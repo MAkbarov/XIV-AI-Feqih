@@ -565,7 +565,9 @@ class SystemUpdateController extends Controller
         $assetsTarget = public_path('build');
         
         if (!File::exists($assetsSource)) {
-            $this->logMessage('⚠️ No prebuilt assets found in update package');
+            $this->logMessage('WARNING: No prebuilt assets found in update package');
+            $this->logMessage('INFO: Using smart deployment fallback...');
+            $this->handleMissingAssets($sourceDir);
             return;
         }
         
@@ -619,6 +621,127 @@ class SystemUpdateController extends Controller
         } catch (\Exception $e) {
             $this->logMessage('❌ Assets deployment failed: ' . $e->getMessage());
             // Don't throw - continue with deployment
+        }
+    }
+    
+    /**
+     * Smart deployment fallback when build assets are missing from GitHub
+     * This rebuilds frontend assets using the updated source files
+     */
+    private function handleMissingAssets(string $sourceDir): void
+    {
+        try {
+            $this->logMessage('INFO: Attempting smart asset rebuilding...');
+            
+            // Step 1: Copy updated source files first
+            $frontendSources = [
+                'resources/js/' => 'resources/js/',
+                'resources/css/' => 'resources/css/',
+                'resources/views/' => 'resources/views/'
+            ];
+            
+            foreach ($frontendSources as $source => $target) {
+                $sourcePath = $sourceDir . '/' . $source;
+                $targetPath = base_path($target);
+                
+                if (File::exists($sourcePath)) {
+                    $this->logMessage("INFO: Updating {$source} source files...");
+                    if (File::exists($targetPath)) {
+                        File::deleteDirectory($targetPath);
+                    }
+                    File::ensureDirectoryExists($targetPath);
+                    File::copyDirectory($sourcePath, $targetPath);
+                }
+            }
+            
+            // Step 2: Try to rebuild assets (if npm is available)
+            $this->attemptAssetRebuild();
+            
+            // Step 3: If rebuild fails, check if existing assets are compatible
+            $this->verifyExistingAssets();
+            
+        } catch (\Exception $e) {
+            $this->logMessage('WARNING: Smart asset deployment failed: ' . $e->getMessage());
+            $this->logMessage('INFO: Will continue with existing assets if available');
+        }
+    }
+    
+    private function attemptAssetRebuild(): void
+    {
+        try {
+            $this->logMessage('INFO: Checking for npm availability...');
+            
+            // Check if npm exists
+            $npmCheck = shell_exec('npm --version 2>/dev/null');
+            if (!$npmCheck) {
+                $this->logMessage('INFO: npm not available, skipping rebuild');
+                return;
+            }
+            
+            $this->logMessage('INFO: npm found, attempting to rebuild assets...');
+            
+            // Try to run npm run build
+            $buildCommand = 'cd ' . escapeshellarg(base_path()) . ' && npm run build 2>&1';
+            $output = shell_exec($buildCommand);
+            
+            if (File::exists(public_path('build/manifest.json'))) {
+                $this->logMessage('SUCCESS: Assets rebuilt successfully!');
+                
+                // Check for SystemUpdate asset specifically
+                $manifest = json_decode(File::get(public_path('build/manifest.json')), true);
+                $systemUpdateKey = 'resources/js/Pages/Admin/SystemUpdate.jsx';
+                if (isset($manifest[$systemUpdateKey])) {
+                    $assetFile = $manifest[$systemUpdateKey]['file'] ?? null;
+                    $this->logMessage("SUCCESS: New SystemUpdate asset: {$assetFile}");
+                } else {
+                    $this->logMessage('WARNING: SystemUpdate asset not found in new build');
+                }
+            } else {
+                $this->logMessage('WARNING: Build completed but no manifest found');
+            }
+            
+        } catch (\Exception $e) {
+            $this->logMessage('WARNING: Asset rebuild failed: ' . $e->getMessage());
+        }
+    }
+    
+    private function verifyExistingAssets(): void
+    {
+        try {
+            $buildPath = public_path('build');
+            $manifestPath = public_path('build/manifest.json');
+            
+            if (!File::exists($manifestPath)) {
+                $this->logMessage('WARNING: No manifest.json found - frontend may not work properly');
+                return;
+            }
+            
+            $manifest = json_decode(File::get($manifestPath), true);
+            if (!$manifest) {
+                $this->logMessage('WARNING: Invalid manifest.json - frontend may have issues');
+                return;
+            }
+            
+            // Check if SystemUpdate asset exists
+            $systemUpdateKey = 'resources/js/Pages/Admin/SystemUpdate.jsx';
+            if (isset($manifest[$systemUpdateKey])) {
+                $assetFile = $manifest[$systemUpdateKey]['file'] ?? null;
+                if ($assetFile && File::exists(public_path('build/' . $assetFile))) {
+                    $this->logMessage("INFO: Existing SystemUpdate asset found: {$assetFile}");
+                    $this->logMessage('WARNING: Using existing asset - new JSX changes may not be visible');
+                    $this->logMessage('SUGGESTION: Run npm run build locally and redeploy');
+                } else {
+                    $this->logMessage('WARNING: SystemUpdate asset missing or broken');
+                }
+            } else {
+                $this->logMessage('WARNING: SystemUpdate.jsx not found in manifest');
+            }
+            
+            $assetCount = count(glob(public_path('build/assets/*')));
+            $this->logMessage("INFO: Using {$assetCount} existing frontend assets");
+            
+        } catch (\Exception $e) {
+            $this->logMessage('WARNING: Asset verification failed: ' . $e->getMessage());
         }
     }
     
@@ -1364,96 +1487,83 @@ class SystemUpdateController extends Controller
      */
     public function systemFixAndRepair(Request $request)
     {
-        try {
-            $this->logMessage('🔧 === SYSTEM FIX & REPAIR STARTED ===');
-            $this->logMessage('💬 SSH-free comprehensive system repair initiated');
-            
-            // Step 1: Clear all caches (most important)
-            $this->logMessage('🧠 Step 1: Clearing all caches...');
-            $this->performAggressiveCacheClear();
-            
-            // Step 2: Database connection test
-            $this->logMessage('🔌 Step 2: Testing database connection...');
+        // Use JSON-safe response streaming to avoid emoji encoding issues
+        return response()->stream(function () {
             try {
-                \DB::connection()->getPdo();
-                $this->logMessage('✅ Database connection: OK');
+                $this->logMessage('=== SYSTEM FIX & REPAIR STARTED ===');
+                $this->logMessage('SSH-free comprehensive system repair initiated');
+                
+                // Step 1: Clear all caches (most important)
+                $this->logMessage('Step 1: Clearing all caches...');
+                $this->performAggressiveCacheClear();
+                
+                // Step 2: Database connection test
+                $this->logMessage('Step 2: Testing database connection...');
+                try {
+                    \DB::connection()->getPdo();
+                    $this->logMessage('SUCCESS: Database connection: OK');
+                } catch (\Exception $e) {
+                    $this->logMessage('ERROR: Database connection failed: ' . $e->getMessage());
+                    throw $e;
+                }
+                
+                // Step 3: Install/check migrations table
+                $this->logMessage('Step 3: Ensuring migrations table exists...');
+                if (!\Schema::hasTable('migrations')) {
+                    Artisan::call('migrate:install', ['--no-interaction' => true]);
+                    $this->logMessage('SUCCESS: Migrations table created');
+                }
+                
+                // Step 4: Force run all pending migrations
+                $this->logMessage('Step 4: Force running all migrations...');
+                try {
+                    Artisan::call('migrate', [
+                        '--force' => true,
+                        '--no-interaction' => true
+                    ]);
+                    $this->logMessage('SUCCESS: All migrations completed');
+                } catch (\Exception $e) {
+                    $this->logMessage('WARNING: Migration warning: ' . $e->getMessage());
+                    // Continue with repairs
+                }
+                
+                // Step 5: Fix knowledge_categories table structure
+                $this->logMessage('Step 5: Fixing knowledge_categories table...');
+                $this->verifyKnowledgeCategoriesTable();
+                
+                // Step 6: Fix knowledge_base table structure  
+                $this->logMessage('Step 6: Fixing knowledge_base table...');
+                $this->verifyDatabaseSchema();
+                
+                // Step 7: Reconcile migration history
+                $this->logMessage('Step 7: Reconciling migration history...');
+                $this->reconcileMigrationsIfNeeded();
+                
+                // Step 8: Verify AiService class and methods
+                $this->logMessage('Step 8: Verifying AiService enhancements...');
+                $this->verifyAiServiceEnhancements();
+                
+                // Step 9: Verify frontend assets
+                $this->logMessage('Step 9: Verifying frontend assets...');
+                $this->verifyFrontendAssets();
+                
+                // Step 10: Final cache clear and optimization
+                $this->logMessage('Step 10: Final system optimization...');
+                $this->performFinalOptimization();
+                
+                $this->logMessage('SUCCESS: === SYSTEM FIX & REPAIR COMPLETED SUCCESSFULLY ===');
+                $this->logMessage('[[REPAIR_SUCCESS]] System repair completed successfully!');
+                
             } catch (\Exception $e) {
-                $this->logMessage('❌ Database connection failed: ' . $e->getMessage());
-                throw $e;
+                $this->logMessage('ERROR: System fix failed: ' . $e->getMessage());
+                $this->logMessage('[[REPAIR_FAILED]] ' . $e->getMessage());
             }
             
-            // Step 3: Install/check migrations table
-            $this->logMessage('🗄️ Step 3: Ensuring migrations table exists...');
-            if (!\Schema::hasTable('migrations')) {
-                Artisan::call('migrate:install', ['--no-interaction' => true]);
-                $this->logMessage('✅ Migrations table created');
-            }
-            
-            // Step 4: Force run all pending migrations
-            $this->logMessage('🚀 Step 4: Force running all migrations...');
-            try {
-                Artisan::call('migrate', [
-                    '--force' => true,
-                    '--no-interaction' => true
-                ]);
-                $this->logMessage('✅ All migrations completed');
-            } catch (\Exception $e) {
-                $this->logMessage('⚠️ Migration warning: ' . $e->getMessage());
-                // Continue with repairs
-            }
-            
-            // Step 5: Fix knowledge_categories table structure
-            $this->logMessage('📁 Step 5: Fixing knowledge_categories table...');
-            $this->verifyKnowledgeCategoriesTable();
-            
-            // Step 6: Fix knowledge_base table structure  
-            $this->logMessage('📁 Step 6: Fixing knowledge_base table...');
-            $this->verifyDatabaseSchema();
-            
-            // Step 7: Reconcile migration history
-            $this->logMessage('🔄 Step 7: Reconciling migration history...');
-            $this->reconcileMigrationsIfNeeded();
-            
-            // Step 8: Verify AiService class and methods
-            $this->logMessage('🤖 Step 8: Verifying AiService enhancements...');
-            $this->verifyAiServiceEnhancements();
-            
-            // Step 9: Verify frontend assets
-            $this->logMessage('🎨 Step 9: Verifying frontend assets...');
-            $this->verifyFrontendAssets();
-            
-            // Step 10: Final cache clear and optimization
-            $this->logMessage('💫 Step 10: Final system optimization...');
-            $this->performFinalOptimization();
-            
-            $this->logMessage('✅ === SYSTEM FIX & REPAIR COMPLETED SUCCESSFULLY ===');
-            
-            return response()->json([
-                'success' => true,
-                'message' => 'System fix and repair completed successfully',
-                'timestamp' => date('Y-m-d H:i:s'),
-                'actions_performed' => [
-                    'Cache cleared aggressively',
-                    'Database connection verified', 
-                    'All migrations executed',
-                    'knowledge_categories table fixed',
-                    'knowledge_base table verified',
-                    'Migration history reconciled',
-                    'AiService enhancements verified',
-                    'Frontend assets verified',
-                    'Final optimization completed'
-                ]
-            ]);
-            
-        } catch (\Exception $e) {
-            $this->logMessage('❌ System fix failed: ' . $e->getMessage());
-            
-            return response()->json([
-                'success' => false,
-                'message' => 'System fix encountered errors: ' . $e->getMessage(),
-                'timestamp' => date('Y-m-d H:i:s')
-            ]);
-        }
+        }, 200, [
+            'Content-Type' => 'text/plain; charset=utf-8',
+            'Cache-Control' => 'no-cache',
+            'X-Accel-Buffering' => 'no'
+        ]);
     }
     
     private function performAggressiveCacheClear(): void
