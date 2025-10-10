@@ -273,40 +273,96 @@ class AiService
     }
     
     /**
+     * Smart keyword extraction for better search accuracy
+     */
+    protected function extractSmartKeywords(string $query): array
+    {
+        // Remove common stop words and focus on meaningful terms
+        $stopWords = ['və', 'ki', 'da', 'də', 'ilə', 'üçün', 'haqqında', 'necə', 'nə', 'hansı', 'olan', 'edən', 'olan', 'bir', 'bu', 'o', 'onun'];
+        
+        // Clean and split query
+        $words = preg_split('/[\s\p{P}]+/u', mb_strtolower($query, 'UTF-8'));
+        $words = array_filter($words, function($word) use ($stopWords) {
+            return strlen($word) >= 3 && !in_array($word, $stopWords);
+        });
+        
+        // Prioritize religious/domain-specific terms
+        $importantTerms = [
+            'namaz', 'qılınır', 'dua', 'zikr', 'quran', 'ayə', 'surə', 'hədis',
+            'gündəlik', 'şəxsi', 'cümə', 'bayram', 'oruc', 'zəkat', 'hac', 'ümrə',
+            'təhləl', 'tövbə', 'istighfar', 'səcdə', 'rüku', 'qiyam', 'təşəhhüd'
+        ];
+        
+        // Sort words by importance and length
+        usort($words, function($a, $b) use ($importantTerms) {
+            $aImportant = in_array($a, $importantTerms);
+            $bImportant = in_array($b, $importantTerms);
+            
+            if ($aImportant && !$bImportant) return -1;
+            if (!$aImportant && $bImportant) return 1;
+            
+            return strlen($b) - strlen($a); // Longer words first
+        });
+        
+        return array_values(array_unique($words));
+    }
+    
+    /**
      * PRIORITY 1: Get URL-based trained content (HIGHEST PRIORITY)
      */
     protected function getUrlTrainedContent(string $query): string
     {
         try {
-            // Split query into words for better search
-            $words = explode(' ', strtolower($query));
-            $words = array_filter($words, function($word) { return strlen($word) > 2; });
+            // Smart keyword extraction
+            $keywords = $this->extractSmartKeywords($query);
+            $exactPhrase = trim($query);
             
-            Log::info('URL SEARCH DEBUG', [
+            Log::info('ADVANCED URL SEARCH DEBUG', [
                 'original_query' => $query,
-                'search_words' => $words
+                'smart_keywords' => $keywords,
+                'exact_phrase' => $exactPhrase
             ]);
             
             // Safe query - check if source_url column exists
             $urlKnowledge = collect();
             
             try {
-                // Try using source_url column if it exists
+                // Advanced multi-tier search strategy
                 $urlKnowledge = KnowledgeBase::where('is_active', true)
                     ->whereNotNull('source_url')
                     ->where('source_url', '!=', '')
-                    ->where(function ($q) use ($query, $words) {
-                        // Exact phrase search
-                        $q->where('title', 'LIKE', "%{$query}%")
-                          ->orWhere('content', 'LIKE', "%{$query}%");
+                    ->where(function ($q) use ($exactPhrase, $keywords, $query) {
+                        // TIER 1: Exact phrase match (highest priority)
+                        $q->where(function($exact) use ($exactPhrase) {
+                            $exact->where('title', 'LIKE', "%{$exactPhrase}%")
+                                  ->orWhere('content', 'LIKE', "%{$exactPhrase}%");
+                        });
                         
-                        // Word-by-word search
-                        foreach ($words as $word) {
-                            $q->orWhere('title', 'LIKE', "%{$word}%")
-                              ->orWhere('content', 'LIKE', "%{$word}%");
+                        // TIER 2: All keywords present (high priority)
+                        if (count($keywords) >= 2) {
+                            $q->orWhere(function($all) use ($keywords) {
+                                foreach ($keywords as $keyword) {
+                                    $all->where('title', 'LIKE', "%{$keyword}%")
+                                        ->orWhere('content', 'LIKE', "%{$keyword}%");
+                                }
+                            });
                         }
+                        
+                        // TIER 3: Important keywords only
+                        $q->orWhere(function($important) use ($keywords) {
+                            foreach ($keywords as $keyword) {
+                                if (strlen($keyword) >= 4) { // Only longer, more specific words
+                                    $important->orWhere('title', 'LIKE', "%{$keyword}%")
+                                             ->orWhere('content', 'LIKE', "%{$keyword}%");
+                                }
+                            }
+                        });
                     })
-                    ->orderBy('updated_at', 'desc')
+                    ->orderByRaw('CASE 
+                        WHEN title LIKE ? THEN 1 
+                        WHEN content LIKE ? THEN 2
+                        WHEN title LIKE ? THEN 3
+                        ELSE 4 END', ["%{$exactPhrase}%", "%{$exactPhrase}%", "%{$keywords[0]}%"])
                     ->limit(3)
                     ->get();
             } catch (\Exception $e) {
@@ -495,25 +551,45 @@ class AiService
     protected function getBroadSearchContent(string $query): string
     {
         try {
-            $words = explode(' ', strtolower($query));
-            $words = array_filter($words, function($word) { return strlen($word) > 2; });
+            $keywords = $this->extractSmartKeywords($query);
+            $exactPhrase = trim($query);
             
-            Log::info('BROAD SEARCH DEBUG', [
+            Log::info('SMART BROAD SEARCH DEBUG', [
                 'original_query' => $query,
-                'search_words' => $words
+                'smart_keywords' => $keywords,
+                'exact_phrase' => $exactPhrase
             ]);
             
             $broadKnowledge = KnowledgeBase::where('is_active', true)
-                ->where(function ($q) use ($query, $words) {
-                    $q->where('title', 'LIKE', "%{$query}%")
-                      ->orWhere('content', 'LIKE', "%{$query}%");
-                    foreach ($words as $word) {
-                        $q->orWhere('title', 'LIKE', "%{$word}%")
-                          ->orWhere('content', 'LIKE', "%{$word}%");
+                ->where(function ($q) use ($exactPhrase, $keywords, $query) {
+                    // TIER 1: Exact phrase match (highest priority)
+                    $q->where(function($exact) use ($exactPhrase) {
+                        $exact->where('title', 'LIKE', "%{$exactPhrase}%")
+                              ->orWhere('content', 'LIKE', "%{$exactPhrase}%");
+                    });
+                    
+                    // TIER 2: Important keywords (high priority)
+                    foreach (array_slice($keywords, 0, 3) as $keyword) {
+                        if (strlen($keyword) >= 4) {
+                            $q->orWhere(function($kw) use ($keyword) {
+                                $kw->where('title', 'LIKE', "%{$keyword}%")
+                                   ->orWhere('content', 'LIKE', "%{$keyword}%");
+                            });
+                        }
+                    }
+                    
+                    // TIER 3: All keywords (fallback)
+                    foreach ($keywords as $keyword) {
+                        $q->orWhere('title', 'LIKE', "%{$keyword}%")
+                          ->orWhere('content', 'LIKE', "%{$keyword}%");
                     }
                 })
-                ->orderBy('updated_at', 'desc')
-                ->limit(5)
+                ->orderByRaw('CASE 
+                    WHEN title LIKE ? THEN 1 
+                    WHEN content LIKE ? THEN 2
+                    WHEN title LIKE ? THEN 3
+                    ELSE 4 END', ["%{$exactPhrase}%", "%{$exactPhrase}%", "%{$keywords[0] ?? ''}%"])
+                ->limit(3)
                 ->get();
                 
             if ($broadKnowledge->isEmpty()) {
@@ -664,17 +740,36 @@ class AiService
             // Response guidelines only if using knowledge base
             if ($hasContent) {
                 $prompt .= "=== CAVAB VERMƏ QAYDALARI ===\n";
+                
+                // Add focused query analysis
+                $prompt .= "SUAL ANALIZi: '{$userQuery}'\n";
+                $keywords = $this->extractSmartKeywords($userQuery);
+                if (!empty($keywords)) {
+                    $prompt .= "ƏSAS ACARsozLAR: " . implode(', ', array_slice($keywords, 0, 3)) . "\n";
+                }
+                
+                $prompt .= "\nCAVAB QAYDALAR:\n";
                 if ($blockExternalLearning) {
-                    $prompt .= "- YALNIZ yuxarıdakı məlumatlara əsaslanaraq cavab ver\n";
-                    $prompt .= "- MƏNBƏ HİSSƏSİNDƏ YALNIZ YUXARIDA VERİLƏN MƏTNLƏRƏ İSTİNAD ET; BAŞQA KİTAB, MÜƏLLİF VƏ ÜMUMİ MƏNBƏ ADLARI YAZMA\n";
+                    $prompt .= "- YALNIZ yuxarıdakı məlumatların MUŠAYIQ həssələrinə əsaslanaraq cavab ver\n";
+                    $prompt .= "- MƏNBƏ HİSSƏSİNDƏ YALNIZ YUXARIDA VERİLƏN MƏTNLƏRƏ İSTİNAD ET\n";
                 } else {
-                    $prompt .= "- Əsasən yuxarıdakı məlumatları istifadə et, lazım gəldikdə tamamla\n";
+                    $prompt .= "- Əsasən yuxarıdakı məlumatların əlaqəli həssələrini istifadə et\n";
                 }
-                $prompt .= "- Həmişə mənbəni qeyd et\n";
+                
+                // Focus guidelines - CRITICAL FOR TARGETED RESPONSES
+                $prompt .= "\n=== FOKUS QAYDALAR ===\n";
+                $prompt .= "- YALNIZ sualın DƏQIQ məzmununa cavab ver\n";
+                $prompt .= "- Əgər 'gündəlik namaz' soruşulursa, YALNIZ gündəlik namaz haqqında yaz\n";
+                $prompt .= "- Əgər müəyyən bir mövzu soruşulursa, BAŞQA mövzulara keçmə\n";
+                $prompt .= "- Uzun siyahılar və ya bütün variantları yazmaqdan QAÇIN\n";
+                $prompt .= "- KONKRET və MƏQSƏDYÖNLÜ cavab ver\n";
+                $prompt .= "- Sualda açıq-aydın soruşulanı ver, əlavə məlumat üçün ayrıca sual istə\n";
+                
                 if ($strictMode) {
-                    $prompt .= "- Dini məsələlərdə ehtiyatlı ol\n";
+                    $prompt .= "- Dini məsələlərdə ehtiyatlı və dəqiq ol\n";
                 }
-                $prompt .= "- Səliqəli və anlaşılan şəkildə yaz\n\n";
+                $prompt .= "- Mənbə qəyd et\n";
+                $prompt .= "- Səliqəli və qısa cavab ver\n\n";
             } else if ($blockExternalLearning) {
                 $prompt .= "Bu mövzu haqqında məlumat bazamda məlumat yoxdur.\n\n";
                 $prompt .= "YUXARIDAKI CÜMLƏ İLƏ CAVAB VER VƏ BAŞQA HEÇ NƏ YAZMA.\n\n";
