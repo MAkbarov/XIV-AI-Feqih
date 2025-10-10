@@ -20,6 +20,7 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
     const toast = useToast();
     const { isDarkMode } = useTheme();
     const [isUpdating, setIsUpdating] = useState(false);
+    const [isRepairing, setIsRepairing] = useState(false);
     const [updateLog, setUpdateLog] = useState([]);
     const [updateStatus, setUpdateStatus] = useState('idle'); // idle, checking, updating, completed, error
     const [updateProgress, setUpdateProgress] = useState(0);
@@ -289,6 +290,60 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
         }
     };
 
+    const performSystemFixAndRepair = async () => {
+        if (!confirm('🔧 SSH-free Sistem Bərpası başlayacaq!\n\nBu proses:\n• Migration problemlərini həll edəcək\n• Database strukturunu yoxlayacaq\n• Cache-i təmizləyəcək\n• AiService metodlarını yoxlayacaq\n\nDavam etmək istəyirsiniz?')) {
+            return;
+        }
+
+        setIsRepairing(true);
+        setUpdateLog(['🔧 === SSH-FREE SİSTEM BƏRPASI BAŞLADI ===']);
+        
+        try {
+            const response = await fetch('/admin/system/fix-and-repair', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN')
+                },
+                credentials: 'same-origin'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                setUpdateLog(prev => [...prev, '✅ SSH-free Sistem Bərpası TAMAMLANDI!']);
+                setUpdateLog(prev => [...prev, '📊 İcra edilən əməliyyatlar:']);
+                
+                if (data.actions_performed) {
+                    data.actions_performed.forEach(action => {
+                        setUpdateLog(prev => [...prev, `  ✓ ${action}`]);
+                    });
+                }
+                
+                setUpdateLog(prev => [...prev, '🎉 Sistem problemləri həll olundu!']);
+                setUpdateLog(prev => [...prev, '🔄 3 saniyə sonra səhifə yenilənəcək...']);
+                
+                toast.success('Sistem bərpası uğurlu! Səhifə yenilənir...');
+                
+                setTimeout(() => {
+                    window.location.reload();
+                }, 3000);
+                
+            } else {
+                throw new Error(data.message || 'Sistem bərpası uğursuz oldu');
+            }
+            
+        } catch (error) {
+            setUpdateLog(prev => [...prev, '❌ Sistem bərpası xətası: ' + error.message]);
+            toast.error('Sistem bərpası uğursuz: ' + error.message);
+        } finally {
+            setIsRepairing(false);
+        }
+    };
+
     useEffect(() => {
         // Auto-check on load
         checkForUpdates();
@@ -428,6 +483,17 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
                                             {isUpdating ? 'Yenilənir...' : `v${latestVersion} Yenilə`}
                                         </button>
                                     )}
+                                    
+                                    {/* SSH-free Fix & Repair Button - Always Available */}
+                                    <button
+                                        onClick={performSystemFixAndRepair}
+                                        disabled={isUpdating || isRepairing}
+                                        className="w-full py-3 px-4 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2 border-2 border-orange-300 dark:border-orange-700"
+                                        title="SSH olmadan sistem problemlərini həll edir"
+                                    >
+                                        <Icon name="tool" size={16} />
+                                        {isRepairing ? 'Bərpa edilir...' : '🔧 Fiksasiya və Bərpa'}
+                                    </button>
                                 </div>
 
                                 <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg p-4">
