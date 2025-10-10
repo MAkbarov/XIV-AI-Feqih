@@ -206,11 +206,20 @@ class AiService
         // Only search knowledge base if enabled
         if ($useKnowledgeBase) {
             // Debug: Database query
+            // Safe database stats - check if source_url column exists
+            $urlItemsCount = 0;
+            try {
+                $urlItemsCount = KnowledgeBase::whereNotNull('source_url')->where('source_url', '!=', '')->count();
+            } catch (\Exception $e) {
+                // source_url column doesn't exist, count by source field containing URLs
+                $urlItemsCount = KnowledgeBase::where('source', 'LIKE', 'http%')->count();
+            }
+            
             Log::info('KNOWLEDGE BASE SEARCH ACTIVE', [
                 'user_query' => $lastUserMessage,
                 'total_knowledge_items' => KnowledgeBase::count(),
                 'active_items' => KnowledgeBase::where('is_active', true)->count(),
-                'url_items' => KnowledgeBase::whereNotNull('source_url')->where('source_url', '!=', '')->count(),
+                'url_items' => $urlItemsCount,
                 'qa_items' => KnowledgeBase::where('category', 'qa')->count()
             ]);
             
@@ -278,23 +287,53 @@ class AiService
                 'search_words' => $words
             ]);
             
-            $urlKnowledge = KnowledgeBase::where('is_active', true)
-                ->whereNotNull('source_url')
-                ->where('source_url', '!=', '')
-                ->where(function ($q) use ($query, $words) {
-                    // Exact phrase search
-                    $q->where('title', 'LIKE', "%{$query}%")
-                      ->orWhere('content', 'LIKE', "%{$query}%");
-                    
-                    // Word-by-word search
-                    foreach ($words as $word) {
-                        $q->orWhere('title', 'LIKE', "%{$word}%")
-                          ->orWhere('content', 'LIKE', "%{$word}%");
-                    }
-                })
-                ->orderBy('updated_at', 'desc')
-                ->limit(3)
-                ->get();
+            // Safe query - check if source_url column exists
+            $urlKnowledge = collect();
+            
+            try {
+                // Try using source_url column if it exists
+                $urlKnowledge = KnowledgeBase::where('is_active', true)
+                    ->whereNotNull('source_url')
+                    ->where('source_url', '!=', '')
+                    ->where(function ($q) use ($query, $words) {
+                        // Exact phrase search
+                        $q->where('title', 'LIKE', "%{$query}%")
+                          ->orWhere('content', 'LIKE', "%{$query}%");
+                        
+                        // Word-by-word search
+                        foreach ($words as $word) {
+                            $q->orWhere('title', 'LIKE', "%{$word}%")
+                              ->orWhere('content', 'LIKE', "%{$word}%");
+                        }
+                    })
+                    ->orderBy('updated_at', 'desc')
+                    ->limit(3)
+                    ->get();
+            } catch (\Exception $e) {
+                // Fallback: search by source field containing URLs
+                $urlKnowledge = KnowledgeBase::where('is_active', true)
+                    ->where(function ($q) {
+                        $q->where('source', 'LIKE', 'http%')
+                          ->orWhere('source', 'LIKE', 'https%')
+                          ->orWhere('source', 'LIKE', '%URL%');
+                    })
+                    ->where(function ($q) use ($query, $words) {
+                        // Exact phrase search
+                        $q->where('title', 'LIKE', "%{$query}%")
+                          ->orWhere('content', 'LIKE', "%{$query}%");
+                        
+                        // Word-by-word search
+                        foreach ($words as $word) {
+                            $q->orWhere('title', 'LIKE', "%{$word}%")
+                              ->orWhere('content', 'LIKE', "%{$word}%");
+                        }
+                    })
+                    ->orderBy('updated_at', 'desc')
+                    ->limit(3)
+                    ->get();
+                
+                Log::warning('source_url column not found, using source field fallback');
+            }
                 
             Log::info('URL SEARCH RESULT', [
                 'found_items' => $urlKnowledge->count(),
@@ -309,13 +348,28 @@ class AiService
             foreach ($urlKnowledge as $item) {
                 $context .= "BAŞLIQ: {$item->title}\n";
                 $context .= "MƏZMUN: {$item->content}\n";
-                $context .= "MƏNBƏ LINK: {$item->source_url}\n";
+                
+                // Safe access to source_url
+                try {
+                    $sourceUrl = $item->source_url ?? $item->source ?? 'N/A';
+                } catch (\Exception $e) {
+                    $sourceUrl = $item->source ?? 'N/A';
+                }
+                $context .= "MƏNBƏ LINK: {$sourceUrl}\n";
                 $context .= "KATEQORİYA: {$item->category}\n\n";
+            }
+            
+            // Safe logging
+            $urlArray = [];
+            try {
+                $urlArray = $urlKnowledge->pluck('source_url')->toArray();
+            } catch (\Exception $e) {
+                $urlArray = $urlKnowledge->pluck('source')->toArray();
             }
             
             Log::info('URL CONTENT PROVIDED (PRIORITY 1)', [
                 'items_count' => $urlKnowledge->count(),
-                'urls' => $urlKnowledge->pluck('source_url')->toArray()
+                'urls' => $urlArray
             ]);
             
             return $context;
@@ -383,16 +437,33 @@ class AiService
     protected function getGeneralKnowledgeContent(string $query): string
     {
         try {
-            $generalKnowledge = KnowledgeBase::where('is_active', true)
-                ->whereNull('source_url')
-                ->where('category', '!=', 'qa')
-                ->where(function ($q) use ($query) {
-                    $q->where('title', 'LIKE', "%{$query}%")
-                      ->orWhere('content', 'LIKE', "%{$query}%");
-                })
-                ->orderBy('created_at', 'desc')
-                ->limit(2)
-                ->get();
+            // Safe query for general knowledge - avoid source_url if column doesn't exist
+            $generalKnowledge = collect();
+            
+            try {
+                // Try with source_url column
+                $generalKnowledge = KnowledgeBase::where('is_active', true)
+                    ->whereNull('source_url')
+                    ->where('category', '!=', 'qa')
+                    ->where(function ($q) use ($query) {
+                        $q->where('title', 'LIKE', "%{$query}%")
+                          ->orWhere('content', 'LIKE', "%{$query}%");
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->limit(2)
+                    ->get();
+            } catch (\Exception $e) {
+                // Fallback: don't use source_url column
+                $generalKnowledge = KnowledgeBase::where('is_active', true)
+                    ->where('category', '!=', 'qa')
+                    ->where(function ($q) use ($query) {
+                        $q->where('title', 'LIKE', "%{$query}%")
+                          ->orWhere('content', 'LIKE', "%{$query}%");
+                    })
+                    ->orderBy('created_at', 'desc')
+                    ->limit(2)
+                    ->get();
+            }
                 
             if ($generalKnowledge->isEmpty()) {
                 return '';

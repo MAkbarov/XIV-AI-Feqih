@@ -1,6 +1,6 @@
 {
     "name": "XIV AI Fəqih",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "initial_version": "1.0.0",
     "release_date": "2025-10-10",
     "author": {
@@ -14,15 +14,14 @@
         "repository": "https://github.com/MAkbarov/XIV-AI-Feqih"
     },
     "changes": [
+        "CRITICAL FIX: Safe database column handling for missing source_url",
+        "FIX: AiService source_url column compatibility with fallback logic",
+        "FIX: Chat response errors due to missing database columns",
+        "IMPROVEMENT: Graceful degradation when schema migrations haven't run",
+        "NEW: Try-catch fallback system for database schema differences",
+        "UPDATE: Enhanced error handling for hosting environment differences",
         "FIX: SystemUpdate migration tracking for new database columns",
-        "NEW: Automated migration deployment for hosting environments",
-        "IMPROVEMENT: Enhanced update system to handle schema changes",
-        "FIX: Database table name compatibility (knowledge_base vs knowledge_bases)",
-        "FIX: Missing source_url column in database schema",
-        "FIX: AI Training page pagination showing wrong total count",
-        "NEW: Added source_url, metadata, embedding columns to knowledge_base",
-        "UPDATE: Improved database migration reconciliation system",
-        "PREVIOUS: v1.0.1 bug fixes and compatibility improvements"
+        "PREVIOUS: v1.0.2 automated migration and system update improvements"
     ],
     "requirements": {
         "php": ">=8.1",
@@ -30,5 +29,5 @@
         "mysql": ">=5.7",
         "node": ">=16.0"
     },
-    "update_notes": "System Update release v1.0.2: Enhanced automated migration system for hosting environments. Fixed migration tracking for new database columns (source_url, metadata, embedding). Improved schema change deployment compatibility."
+    "update_notes": "Critical Fix release v1.0.3: Fixed chat response errors caused by missing source_url database column. Added safe fallback logic for hosting environments where migrations haven't run yet. Enhanced compatibility with different schema states."
 }
