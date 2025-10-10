@@ -51,14 +51,15 @@ class AiTrainingController extends Controller
         $knowledgeItemsPaginated = $query->paginate($perPage, ['*'], 'page', $page);
         $systemPrompt = Settings::get('ai_system_prompt', '');
         
-        // Calculate total active count (independent of search/pagination)
+        // Calculate global counts (independent of search/pagination)
+        $totalKnowledgeCount = KnowledgeBase::count(); // Bütün məlumatların sayı
         $totalActiveCount = KnowledgeBase::where('is_active', true)->count();
         
         // Calculate trained URLs counts (independent of search/pagination)
-        $totalTrainedUrls = KnowledgeBase::where('source_url', '!=', null)
+        $totalTrainedUrls = KnowledgeBase::whereNotNull('source_url')
             ->where('source_url', 'LIKE', 'http%')
             ->count();
-        $totalActiveTrainedUrls = KnowledgeBase::where('source_url', '!=', null)
+        $totalActiveTrainedUrls = KnowledgeBase::whereNotNull('source_url')
             ->where('source_url', 'LIKE', 'http%')
             ->where('is_active', true)
             ->count();
@@ -86,7 +87,8 @@ class AiTrainingController extends Controller
                 'current_page' => $knowledgeItemsPaginated->currentPage(),
                 'last_page' => $knowledgeItemsPaginated->lastPage(),
                 'per_page' => $knowledgeItemsPaginated->perPage(),
-                'total' => $knowledgeItemsPaginated->total(),
+                'total' => $totalKnowledgeCount, // Bütün məlumatların sayı (axtarışdan asılı olmayaraq)
+                'search_total' => $knowledgeItemsPaginated->total(), // Axtarış nəticəsinin sayı
                 'total_active' => $totalActiveCount,
                 'total_trained_urls' => $totalTrainedUrls,
                 'total_active_trained_urls' => $totalActiveTrainedUrls,

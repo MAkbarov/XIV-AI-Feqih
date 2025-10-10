@@ -1212,7 +1212,7 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
                                 {pagination && pagination.has_pages && (
                                     <div className="mt-6 flex items-center justify-between">
                                         <div className="text-sm text-gray-700 dark:text-gray-300">
-                                            {pagination.from}-{pagination.to} / {pagination.total} nəticə göstərilir
+                                            {pagination.from}-{pagination.to} / {pagination.search_total || pagination.total} nəticə göstərilir
                                         </div>
                                         
                                         <div className="flex items-center gap-1">

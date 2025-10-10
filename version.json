@@ -1,6 +1,6 @@
 {
     "name": "XIV AI Fəqih",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "initial_version": "1.0.0",
     "release_date": "2025-10-10",
     "author": {
@@ -14,16 +14,14 @@
         "repository": "https://github.com/MAkbarov/XIV-AI-Feqih"
     },
     "changes": [
-        "INITIAL: XIV AI Fəqih Islamic Chatbot Platform v1.0.0",
-        "NEW: Complete Laravel-based AI chatbot system",
-        "NEW: Islamic knowledge base and AI training system",
-        "NEW: Admin panel with comprehensive management",
-        "NEW: User authentication and role-based access",
-        "NEW: Real-time chat with AI response system",
-        "NEW: Feedback collection and analytics",
-        "NEW: SEO optimization and management panel",
-        "NEW: Multi-language support (Azerbaijani/English)",
-        "NEW: Professional installer with setup wizard"
+        "FIX: Database table name compatibility (knowledge_base vs knowledge_bases)",
+        "FIX: Missing source_url column in database schema",
+        "FIX: AI Training page pagination showing wrong total count",
+        "FIX: Search functionality displaying filtered results in stats",
+        "NEW: Added source_url, metadata, embedding columns to knowledge_base",
+        "IMPROVEMENT: Enhanced database compatibility for hosting deployment",
+        "UPDATE: Improved error handling for missing database columns",
+        "PREVIOUS: XIV AI Fəqih Islamic Chatbot Platform v1.0.0 baseline features"
     ],
     "requirements": {
         "php": ">=8.1",
@@ -31,5 +29,5 @@
         "mysql": ">=5.7",
         "node": ">=16.0"
     },
-    "update_notes": "Initial release of XIV AI Fəqih - Advanced Islamic AI Chatbot Platform with comprehensive admin panel, knowledge base management, and professional SEO features"
+    "update_notes": "Bug fix release v1.0.1: Fixed database compatibility issues, missing columns, and AI Training page statistics display. Enhanced hosting deployment compatibility."
 }

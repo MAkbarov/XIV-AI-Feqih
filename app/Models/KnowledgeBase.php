@@ -85,14 +85,14 @@ class KnowledgeBase extends Model
             
             // PRIORITY 1: URL-based trained content (highest priority)
             $urlTrainedResults = static::where('is_active', true)
-                ->whereNotNull('source_url') // URL-dən train edilmişlər
+                ->whereNotNull('source_url')
                 ->where('source_url', '!=', '')
                 ->where(function ($q) use ($query, $expandedQuery) {
                     $q->where('title', 'LIKE', "%{$query}%")
                       ->orWhere('content', 'LIKE', "%{$query}%")
                       ->orWhere('category', 'LIKE', "%{$query}%");
                 })
-                ->orderBy('updated_at', 'desc') // Yeni training-ləri prioritet et
+                ->orderBy('updated_at', 'desc')
                 ->limit(3)
                 ->get();
             
