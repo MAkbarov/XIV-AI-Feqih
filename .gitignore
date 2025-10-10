@@ -62,3 +62,8 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json
 yarn.lock
+
+# Development and temporary files
+*.zip
+XIV-AI-*.zip
+create-hosting-update.ps1

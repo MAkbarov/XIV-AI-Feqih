@@ -1,0 +1,18 @@
+{
+    "version": "1.1.0",
+    "release_date": "2025-01-05",
+    "changes": [
+        "Fixed system update GitHub URL configuration",
+        "Improved admin footer visibility across all pages",
+        "Enhanced donation modal functionality",
+        "Optimized cache management system",
+        "Production-ready optimizations",
+        "Bug fixes and performance improvements"
+    ],
+    "requirements": {
+        "php": ">=8.1",
+        "laravel": "^10.0",
+        "mysql": ">=5.7"
+    },
+    "update_notes": "Minor update with system improvements, bug fixes and production optimizations"
+}
