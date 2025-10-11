@@ -232,7 +232,7 @@ class UserBackgroundController extends Controller
         }
 
         $validator = Validator::make($request->all(), [
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:400' // max 400KB
+            'image' => 'required|file|max:400' // max 400KB, simplified validation
         ]);
 
         if ($validator->fails()) {
@@ -245,6 +245,25 @@ class UserBackgroundController extends Controller
 
         try {
             $file = $request->file('image');
+            
+            // Manual image type validation (since fileinfo extension is not available)
+            $allowedExtensions = ['jpg', 'jpeg', 'png', 'gif'];
+            $extension = strtolower($file->getClientOriginalExtension());
+            
+            if (!in_array($extension, $allowedExtensions)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid file type. Only JPG, JPEG, PNG, and GIF files are allowed.'
+                ], 422);
+            }
+            
+            // Check file size manually (400KB = 409600 bytes)
+            if ($file->getSize() > 409600) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'File too large. Maximum size is 400KB.'
+                ], 422);
+            }
             
             // Get or create user background record
             $background = $user->background ?? UserBackground::create([
