@@ -89,6 +89,11 @@ class AiService
     protected function chatWithOpenAICompatible(array $messages, int $maxTokens): array
     {
         try {
+            // Ensure client exists (API key configured)
+            if (!$this->client) {
+                throw new Exception('AI provayder API açarı konfiqurasiya edilməyib.');
+            }
+
             // Set timeout for the request
             set_time_limit(120); // 2 minutes timeout
             
@@ -119,9 +124,9 @@ class AiService
                 'content' => $response->choices[0]->message->content,
                 'tokens' => $response->usage->total_tokens ?? 0,
             ];
-        } catch (Exception $e) {
+        } catch (\Throwable $e) {
             Log::error('AI request failed', [
-                'provider' => $this->provider->name,
+                'provider' => $this->provider->name ?? null,
                 'error' => $e->getMessage()
             ]);
             throw new Exception('AI sorğusu uğursuz oldu: ' . $e->getMessage());

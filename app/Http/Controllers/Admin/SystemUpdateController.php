@@ -1084,36 +1084,27 @@ class SystemUpdateController extends Controller
     private function optimizeSystem(): void
     {
         try {
-            // AGGRESSIVE CACHE CLEARING for hosting environments
-            $this->logMessage('🧹 AGGRESSIVE CACHE CLEARING...');
+            // SAFE CACHE CLEARING (no config clear during request)
+            $this->logMessage('🧹 SAFE CACHE CLEARING...');
             
-            // Standard Laravel cache clearing
-            Artisan::call('config:clear');
-            Artisan::call('route:clear');  
-            Artisan::call('view:clear');
-            Artisan::call('cache:clear');
+            // Do NOT clear config during the request; it may break APP_KEY resolution
+            try { Artisan::call('route:clear'); } catch (\Exception $e) {}
+            try { Artisan::call('view:clear'); } catch (\Exception $e) {}
+            try { Artisan::call('cache:clear'); } catch (\Exception $e) {}
             
             // Clear additional caches safely
-            try {
-                Artisan::call('optimize:clear');
-            } catch (\Exception $e) {
-                $this->logMessage('⚠️ optimize:clear skipped: ' . $e->getMessage());
-            }
+            try { Artisan::call('optimize:clear'); } catch (\Exception $e) { $this->logMessage('⚠️ optimize:clear skipped: ' . $e->getMessage()); }
             
-            // FORCE file-based cache clearing
+            // File-based cache clearing (preserve bootstrap/config.php)
             $this->forceClearFileCache();
             
-            // Reset OPcache aggressively
+            // Reset OPcache
             $this->resetOPCache();
             
             // Update storage links
-            try {
-                Artisan::call('storage:link');
-            } catch (\Exception $e) {
-                // Ignore if already exists
-            }
+            try { Artisan::call('storage:link'); } catch (\Exception $e) {}
 
-            $this->logMessage('✅ System aggressively optimized');
+            $this->logMessage('✅ System safely optimized');
             
         } catch (\Exception $e) {
             $this->logMessage('⚠️ Optimization warning: ' . $e->getMessage());
@@ -1125,7 +1116,7 @@ class SystemUpdateController extends Controller
         try {
             // Clear bootstrap cache files
             $bootstrapCacheFiles = [
-                'bootstrap/cache/config.php',
+                // 'bootstrap/cache/config.php', // PRESERVE APP_KEY cache
                 'bootstrap/cache/services.php', 
                 'bootstrap/cache/packages.php',
                 'bootstrap/cache/routes-v7.php'
@@ -1500,28 +1491,26 @@ class SystemUpdateController extends Controller
                 // Step 1.5: Ensure APP_KEY is set (CRITICAL for Laravel functionality)
                 $this->logMessage('Step 1.5: Ensuring APP_KEY is properly set...');
                 try {
-                    $appKey = config('app.key');
-                    if (empty($appKey) || $appKey === 'base64:') {
-                        $this->logMessage('WARNING: APP_KEY is missing or invalid, generating new one...');
+                    // Check .env directly to avoid config cache issues
+                    $envPath = base_path('.env');
+                    $appKeyExists = false;
+                    if (File::exists($envPath)) {
+                        $envContent = File::get($envPath);
+                        if (str_contains($envContent, 'APP_KEY=base64:') && !str_contains($envContent, 'APP_KEY=base64:=')) {
+                            $appKeyExists = true;
+                            $this->logMessage('SUCCESS: APP_KEY found in .env file');
+                        }
+                    }
+                    if (!$appKeyExists) {
+                        $this->logMessage('WARNING: APP_KEY missing in .env, generating...');
                         Artisan::call('key:generate', ['--force' => true, '--no-interaction' => true]);
-                        $this->logMessage('SUCCESS: New APP_KEY generated');
-                        
-                        // Clear config cache to reload the new key
-                        Artisan::call('config:clear');
-                        $this->logMessage('SUCCESS: Config cache cleared to reload APP_KEY');
+                        $this->logMessage('SUCCESS: New APP_KEY generated in .env');
                     } else {
                         $this->logMessage('SUCCESS: APP_KEY is properly set');
                     }
                 } catch (\Exception $e) {
                     $this->logMessage('WARNING: APP_KEY check failed: ' . $e->getMessage());
-                    // Try to generate anyway
-                    try {
-                        Artisan::call('key:generate', ['--force' => true, '--no-interaction' => true]);
-                        Artisan::call('config:clear');
-                        $this->logMessage('SUCCESS: APP_KEY generated as fallback');
-                    } catch (\Exception $keyError) {
-                        $this->logMessage('ERROR: Could not generate APP_KEY: ' . $keyError->getMessage());
-                    }
+                    $this->logMessage('INFO: Continuing repair without APP_KEY cache changes');
                 }
                 
                 // Step 2: Database connection test
@@ -1610,11 +1599,10 @@ class SystemUpdateController extends Controller
     private function performAggressiveCacheClear(): void
     {
         try {
-            // Laravel cache commands
-            Artisan::call('cache:clear');
-            Artisan::call('config:clear');
-            Artisan::call('route:clear');
-            Artisan::call('view:clear');
+            // SAFE cache commands (skip config:clear to preserve APP_KEY)
+            try { Artisan::call('route:clear'); } catch (\Exception $e) {}
+            try { Artisan::call('view:clear'); } catch (\Exception $e) {}
+            try { Artisan::call('cache:clear'); } catch (\Exception $e) {}
             
             // Try optimize:clear if available
             try {
@@ -1623,13 +1611,13 @@ class SystemUpdateController extends Controller
                 // Ignore if not available
             }
             
-            // Force file-based cache clearing
+            // File-based cache clearing (preserve bootstrap/config.php)
             $this->forceClearFileCache();
             
             // Reset OPcache
             $this->resetOPCache();
             
-            $this->logMessage('✅ Aggressive cache clear completed');
+            $this->logMessage('✅ Safe cache clear completed');
             
         } catch (\Exception $e) {
             $this->logMessage('⚠️ Cache clear warning: ' . $e->getMessage());
@@ -1645,11 +1633,10 @@ class SystemUpdateController extends Controller
         try {
             $this->logMessage('INFO: Starting post-repair cache clearing...');
             
-            // Standard Laravel cache clearing
-            Artisan::call('cache:clear');
-            Artisan::call('config:clear');
-            Artisan::call('route:clear');
-            Artisan::call('view:clear');
+            // Standard Laravel cache clearing (SKIP config:clear)
+            try { Artisan::call('cache:clear'); } catch (\Exception $e) {}
+            try { Artisan::call('route:clear'); } catch (\Exception $e) {}
+            try { Artisan::call('view:clear'); } catch (\Exception $e) {}
             
             // IMPORTANT: Do NOT clear bootstrap/config.php after APP_KEY is set
             // This would cause APP_KEY to be lost and result in 500 errors
@@ -1809,13 +1796,8 @@ class SystemUpdateController extends Controller
                 // Ignore if already exists
             }
             
-            // Final cache optimization
-            try {
-                Artisan::call('config:cache');
-                Artisan::call('route:cache');
-            } catch (\Exception $e) {
-                $this->logMessage('⚠️ Final optimization warning: ' . $e->getMessage());
-            }
+            // Final cache optimization (SKIP config:cache and route:cache during web request)
+            $this->logMessage('INFO: Skipping config:cache and route:cache during update request');
             
             $this->logMessage('✅ Final optimization completed');
             
