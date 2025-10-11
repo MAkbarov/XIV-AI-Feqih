@@ -1497,6 +1497,33 @@ class SystemUpdateController extends Controller
                 $this->logMessage('Step 1: Clearing all caches...');
                 $this->performAggressiveCacheClear();
                 
+                // Step 1.5: Ensure APP_KEY is set (CRITICAL for Laravel functionality)
+                $this->logMessage('Step 1.5: Ensuring APP_KEY is properly set...');
+                try {
+                    $appKey = config('app.key');
+                    if (empty($appKey) || $appKey === 'base64:') {
+                        $this->logMessage('WARNING: APP_KEY is missing or invalid, generating new one...');
+                        Artisan::call('key:generate', ['--force' => true, '--no-interaction' => true]);
+                        $this->logMessage('SUCCESS: New APP_KEY generated');
+                        
+                        // Clear config cache to reload the new key
+                        Artisan::call('config:clear');
+                        $this->logMessage('SUCCESS: Config cache cleared to reload APP_KEY');
+                    } else {
+                        $this->logMessage('SUCCESS: APP_KEY is properly set');
+                    }
+                } catch (\Exception $e) {
+                    $this->logMessage('WARNING: APP_KEY check failed: ' . $e->getMessage());
+                    // Try to generate anyway
+                    try {
+                        Artisan::call('key:generate', ['--force' => true, '--no-interaction' => true]);
+                        Artisan::call('config:clear');
+                        $this->logMessage('SUCCESS: APP_KEY generated as fallback');
+                    } catch (\Exception $keyError) {
+                        $this->logMessage('ERROR: Could not generate APP_KEY: ' . $keyError->getMessage());
+                    }
+                }
+                
                 // Step 2: Database connection test
                 $this->logMessage('Step 2: Testing database connection...');
                 try {
@@ -1624,20 +1651,26 @@ class SystemUpdateController extends Controller
             Artisan::call('route:clear');
             Artisan::call('view:clear');
             
-            // Force clear bootstrap cache (most important for APP_KEY issues)
+            // IMPORTANT: Do NOT clear bootstrap/config.php after APP_KEY is set
+            // This would cause APP_KEY to be lost and result in 500 errors
             $bootstrapCache = base_path('bootstrap/cache');
-            $filesToDelete = [
-                $bootstrapCache . '/config.php',
+            
+            // Only clear specific cache files that are safe to delete
+            $safeFilesToDelete = [
                 $bootstrapCache . '/packages.php',
                 $bootstrapCache . '/services.php',
+                // Skip config.php to preserve APP_KEY
             ];
             
-            foreach ($filesToDelete as $file) {
+            foreach ($safeFilesToDelete as $file) {
                 if (File::exists($file)) {
                     File::delete($file);
-                    $this->logMessage('INFO: Deleted bootstrap cache file: ' . basename($file));
+                    $this->logMessage('INFO: Deleted safe cache file: ' . basename($file));
                 }
             }
+            
+            // Log that we're preserving config.php for APP_KEY
+            $this->logMessage('INFO: Preserved bootstrap/config.php to maintain APP_KEY');
             
             // Clear route cache files
             $routeCacheFiles = glob($bootstrapCache . '/route-*.php');

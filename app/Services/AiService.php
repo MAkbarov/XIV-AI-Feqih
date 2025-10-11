@@ -30,6 +30,16 @@ class AiService
 
     protected function initializeClient(): void
     {
+        // Check if API key is properly set
+        if (empty($this->provider->api_key)) {
+            Log::warning('AI Provider API key is not set', [
+                'provider' => $this->provider->name,
+                'driver' => $this->provider->driver
+            ]);
+            $this->client = null;
+            return;
+        }
+        
         switch ($this->provider->driver) {
             case 'openai':
                 $this->client = OpenAI::client($this->provider->api_key);
