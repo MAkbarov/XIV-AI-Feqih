@@ -12,6 +12,7 @@ use ZipArchive;
 use App\Http\Controllers\Admin\Traits\HasFooterData;
 use App\Models\SystemUpdateLog;
 
+
 class SystemUpdateController extends Controller
 {
     use HasFooterData;
