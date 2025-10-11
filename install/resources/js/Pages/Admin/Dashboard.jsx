@@ -115,7 +115,7 @@ export default function AdminDashboard({ stats, system_health, notification_stat
             value: notification_stats?.unread_notifications || 0, 
             color: '#8B5CF6',
             icon: 'bell',
-            description: 'Oxunmamış admin bildirişləri'
+            description: 'Oxunmamış Admin bildirişləri'
         },
     ];
 
