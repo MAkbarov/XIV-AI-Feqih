@@ -101,6 +101,11 @@ export default function ChatIndex({ auth, sessions = [], settings = {}, theme: p
   const [typewriterMessages, setTypewriterMessages] = useState(new Set());
   const [isTypewriting, setIsTypewriting] = useState(false); // Track if any message is being typed
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  
+  // Debug: Log sidebar state
+  useEffect(() => {
+    console.log('Sidebar state:', isSidebarOpen, 'Window width:', window.innerWidth);
+  }, [isSidebarOpen]);
   const [abortController, setAbortController] = useState(null);
   const [messageFeedback, setMessageFeedback] = useState(new Map()); // mesaj ID -> feedback tipi
   const [showLimitInfo, setShowLimitInfo] = useState(false);
@@ -822,6 +827,71 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
     document.addEventListener('click', onDocClick);
     return () => document.removeEventListener('click', onDocClick);
   }, []);
+  
+  // ESC düyməsi ilə mobil sidebar bağlanmasını təmin et
+  useEffect(() => {
+    const handleEscKey = (e) => {
+      if (e.key === 'Escape' && isSidebarOpen) {
+        setIsSidebarOpen(false);
+      }
+    };
+    
+    document.addEventListener('keydown', handleEscKey);
+    return () => document.removeEventListener('keydown', handleEscKey);
+  }, [isSidebarOpen]);
+  
+  // Mobil versiyada sidebar açıq olduğu zaman body scroll-u blokla
+  useEffect(() => {
+    if (isSidebarOpen && window.innerWidth < 768) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.paddingRight = '0px'; // scrollbar ölçüsünü kompensasiya et
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    }
+    
+    // Cleanup function - component unmount zamanı scroll-u bərpa et
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.paddingRight = '';
+    };
+  }, [isSidebarOpen]);
+  
+  // Mobil cihazlarda güclü sidebar bağlama handler-i
+  const closeSidebarHandler = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    console.log('Sidebar bağlanır:', isSidebarOpen); // Debug üçün
+    setIsSidebarOpen(false);
+  };
+  
+  // Touch start handler mobil cihazlar üçün
+  const handleTouchStart = (e) => {
+    if (window.innerWidth >= 768) return; // Yalnız mobil versiyada
+    console.log('Touch start detected'); // Debug üçün
+    closeSidebarHandler(e);
+  };
+  
+  // Window resize handler - desktop-a keçdikdə sidebar-ı bağla
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768 && isSidebarOpen) {
+        console.log('Desktop-a keçildi, sidebar bağlanır');
+        setIsSidebarOpen(false);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isSidebarOpen]);
+  
+  // Məcburi sidebar bağlanması debug üçün
+  const forceCloseSidebar = () => {
+    console.log('Force close sidebar executed');
+    setIsSidebarOpen(false);
+  };
 
   return (
     <div className={`${fullTheme.isDarkMode ? 'dark' : ''}`}>
@@ -854,9 +924,32 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
             <motion.button
               whileHover={{ scale: 1.05, rotate: 5 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Toggle button clicked:', !isSidebarOpen); // Debug
+                setIsSidebarOpen(!isSidebarOpen);
+              }}
+              onTouchStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Toggle touch start'); // Debug
+              }}
+              onTouchEnd={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const newState = !isSidebarOpen;
+                console.log('Toggle touch end, changing state from', isSidebarOpen, 'to', newState);
+                setIsSidebarOpen(newState);
+              }}
               className="md:hidden p-3 rounded-xl bg-gradient-to-br from-purple-500/10 to-indigo-500/10 text-gray-700 dark:text-gray-300 hover:from-purple-500/20 hover:to-indigo-500/20 border border-purple-200/30 dark:border-purple-700/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl"
               aria-label="Söhbət tarixçəsi"
+              type="button"
+              style={{
+                touchAction: 'manipulation',
+                WebkitTouchCallout: 'none',
+                WebkitUserSelect: 'none'
+              }}
             >
               <Icon name="menu" size={20} />
             </motion.button>
@@ -1065,85 +1158,187 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
           </div>
         </motion.header>
 
-        <div className="flex gap-0 md:gap-2 lg:gap-3">
-          {/* Mobile sidebar overlay */}
-          {isSidebarOpen && (
-            <div 
-              className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-              onClick={() => setIsSidebarOpen(false)}
-            />
-          )}
+        <div className="flex gap-0 md:gap-4 h-full">
+          {/* Mobil Overlay - yalnız sidebar açıq olduqda */}
+          <AnimatePresence>
+            {isSidebarOpen && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden"
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  setIsSidebarOpen(false);
+                }}
+                onClick={() => setIsSidebarOpen(false)}
+              />
+            )}
+          </AnimatePresence>
           
-          {/* Sidebar */}
-          <aside className={`${
-            isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          } md:translate-x-0 fixed md:relative top-0 left-0 z-50 md:z-auto w-80 md:w-[280px] lg:w-[300px] xl:w-[320px] h-full md:h-auto transform transition-transform duration-300 ease-in-out md:block md:flex-shrink-0`}>
-            <div className="h-[80vh] md:h-[70vh] lg:h-[65vh] backdrop-blur-xl bg-white/95 dark:bg-gray-800/95 md:bg-white/90 md:dark:bg-gray-800/90 border-r md:border border-emerald-200 dark:border-gray-600 rounded-2xl overflow-hidden p-4 md:p-3 lg:p-3 shadow-2xl md:shadow-2xl hover:shadow-3xl dark:shadow-purple-500/10 transition-all duration-300 flex flex-col" style={{ minWidth: '250px' }}>
-              {/* Mobile site name */}
-              <div className="md:hidden flex items-center gap-2 mb-4 p-3 bg-white/50 dark:bg-gray-700/50 rounded-lg">
-{settings.brand_mode === 'logo' && (brandLogoUrl || settings.brand_logo_url) ? (
-                  <img src={brandLogoUrl || settings.brand_logo_url} alt="logo" className="w-5 h-5 object-contain rounded" />
-                ) : settings.brand_mode === 'icon' ? (
-                  <Icon name={settings.brand_icon_name || 'nav_chat'} size={20} color={primaryColor} />
-                ) : null}
-                <span className="font-semibold text-gray-800 dark:text-gray-100 truncate">{siteName}</span>
-              </div>
-              
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg md:text-xs lg:text-sm font-semibold md:font-medium uppercase tracking-wider text-gray-700 dark:text-gray-300 md:text-gray-600 md:dark:text-gray-400">Söhbət Tarixçəsi</h2>
-                <button 
-                  onClick={() => setIsSidebarOpen(false)}
-                  className="md:hidden p-2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+          {/* Sidebar - Desktop: həmişə, Mobil: AnimatePresence ilə */}
+          <AnimatePresence>
+            {(isSidebarOpen || window.innerWidth >= 768) && (
+              <motion.aside 
+                initial={{ x: window.innerWidth < 768 ? -320 : 0, opacity: window.innerWidth < 768 ? 0 : 1 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: -320, opacity: 0 }}
+                transition={{ 
+                  type: "spring", 
+                  stiffness: 300, 
+                  damping: 30,
+                  mass: 0.8
+                }}
+                className="
+                  fixed md:relative
+                  top-0 left-0
+                  h-full
+                  w-80 md:w-72 lg:w-80
+                  bg-gradient-to-b from-white via-white to-gray-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-900
+                  backdrop-blur-xl
+                  border-r border-gray-200 dark:border-gray-700
+                  rounded-r-3xl md:rounded-3xl
+                  z-50 md:z-auto
+                  flex flex-col
+                  shadow-2xl md:shadow-xl
+                "
+              >
+                {/* Sidebar Header */}
+                <motion.div 
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-gradient-to-r from-purple-50/30 to-indigo-50/30 dark:from-purple-900/10 dark:to-indigo-900/10 rounded-tr-3xl md:rounded-t-3xl"
                 >
-                  <Icon name="close" size={20} />
-                </button>
-              </div>
-              <div className="space-y-2 max-h-[calc(80vh-8rem)] md:max-h-[calc(70vh-8rem)] lg:max-h-[calc(65vh-8rem)] overflow-auto pr-1 custom-scrollbar">
-                {/* Show authenticated user sessions or guest sessions */}
-                {(auth?.user ? localSessions : guestSessions).map(s => (
-                  <div key={s.session_id} className={`group relative flex items-center w-full rounded-lg text-gray-700 dark:text-gray-200 hover:bg-emerald-50 dark:hover:bg-gray-600 transition-colors ${currentSessionId===s.session_id?'bg-emerald-100 dark:bg-gray-700 border-l-2':''}`}
-                       style={currentSessionId===s.session_id ? { borderLeftColor: primaryColor } : {}}>
-                    <button
+                  <div className="flex items-center gap-2">
+                    {settings.brand_mode === 'logo' && (brandLogoUrl || settings.brand_logo_url) ? (
+                      <motion.img 
+                        whileHover={{ scale: 1.1, rotate: 5 }}
+                        src={brandLogoUrl || settings.brand_logo_url} 
+                        alt="logo" 
+                        className="w-7 h-7 object-contain rounded-lg shadow-sm" 
+                      />
+                    ) : settings.brand_mode === 'icon' ? (
+                      <motion.div whileHover={{ scale: 1.1, rotate: 5 }}>
+                        <Icon name={settings.brand_icon_name || 'nav_chat'} size={24} color={primaryColor} />
+                      </motion.div>
+                    ) : null}
+                    <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200 uppercase tracking-wider">Söhbət Tarixçəsi</h2>
+                  </div>
+                  {/* Mobil: Bağla düyməsi */}
+                  <motion.button
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsSidebarOpen(false);
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsSidebarOpen(false);
+                    }}
+                    className="md:hidden p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors active:bg-gray-200 dark:active:bg-gray-600 shadow-sm"
+                    type="button"
+                    aria-label="Bağla"
+                  >
+                    <Icon name="close" size={20} />
+                  </motion.button>
+                </motion.div>
+
+                {/* Söhbətlər Siyahısı */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
+                  {(auth?.user ? localSessions : guestSessions).map((s, idx) => (
+                    <motion.button
+                      key={s.session_id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.05, duration: 0.3 }}
+                      whileHover={{ scale: 1.02, x: 4 }}
+                      whileTap={{ scale: 0.98 }}
                       onClick={() => {
                         loadSession(s.session_id);
-                        setIsSidebarOpen(false); // Close sidebar on mobile after selection
+                        // Mobil: söhbət seçildikdə sidebar bağlanır
+                        if (window.innerWidth < 768) {
+                          setIsSidebarOpen(false);
+                        }
                       }}
-                      className="flex-1 text-left px-2 py-2 md:py-2 text-xs md:text-sm"
+                      className={`
+                        group w-full text-left px-3 py-2.5 rounded-xl transition-all
+                        ${currentSessionId === s.session_id 
+                          ? 'bg-gradient-to-r from-emerald-50 to-emerald-100/50 dark:from-gray-700 dark:to-gray-600 border-l-4 shadow-md' 
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:shadow-sm'
+                        }
+                      `}
+                      style={currentSessionId === s.session_id ? { borderLeftColor: primaryColor } : {}}
                     >
-                      <div className="truncate font-medium max-w-[180px] md:max-w-[200px]">{s.title || s.session_id.slice(0,8)}</div>
-                      {!auth?.user && s.created_at && (
-                        <div className="text-xs text-gray-400 mt-1">
-                          {new Date(s.created_at).toLocaleDateString('az')}
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                            {s.title || s.session_id.slice(0, 8)}
+                          </div>
+                          {!auth?.user && s.created_at && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              {new Date(s.created_at).toLocaleDateString('az')}
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </button>
-                    
-                    {/* Delete button */}
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSessionToDelete(s);
-                        setShowDeleteModal(true);
-                      }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity px-2 py-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg mr-1"
-                      title="Söhbəti sil"
+                        <motion.button
+                          whileHover={{ scale: 1.2 }}
+                          whileTap={{ scale: 0.9 }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSessionToDelete(s);
+                            setShowDeleteModal(true);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all"
+                          title="Söhbəti sil"
+                        >
+                          <Icon name="close" size={16} className="text-red-500" />
+                        </motion.button>
+                      </div>
+                    </motion.button>
+                  ))}
+                  
+                  {(auth?.user ? localSessions : guestSessions).length === 0 && (
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: 0.2 }}
+                      className="text-center py-12"
                     >
-                      <Icon name="close" size={14} />
-                    </button>
-                  </div>
-                ))}
-                {(auth?.user ? localSessions : guestSessions).length === 0 && (
-                  <div className="text-center py-8">
-                    <Icon name="chat" size={48} color={fullTheme.isDarkMode ? '#9ca3af' : '#d1d5db'} className="mx-auto mb-3" />
-                    <p className="text-sm text-gray-600 dark:text-gray-300">Siz hələ söhbət etməmisiniz</p>
-                  </div>
-                )}
-              </div>
-              
+                      <Icon name="chat" size={48} color={fullTheme.isDarkMode ? '#6b7280' : '#d1d5db'} className="mx-auto mb-3" />
+                      <p className="text-sm text-gray-500 dark:text-gray-400">Heç bir söhbət yoxdur</p>
+                    </motion.div>
+                  )}
+                </div>
 
-              
-            </div>
-          </aside>
+                {/* Sidebar Footer with Badge */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gradient-to-r from-purple-50/30 to-indigo-50/30 dark:from-purple-900/10 dark:to-indigo-900/10 rounded-br-3xl md:rounded-b-3xl"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Icon name="chat" size={18} color={primaryColor} />
+                      <span className="text-xs font-medium text-gray-600 dark:text-gray-400">Ümumi söhbətlər</span>
+                    </div>
+                    <motion.div 
+                      whileHover={{ scale: 1.15 }}
+                      className="flex items-center justify-center min-w-[28px] h-7 px-2.5 rounded-full text-xs font-bold text-white shadow-lg"
+                      style={{ backgroundColor: primaryColor }}
+                    >
+                      {(auth?.user ? localSessions : guestSessions).length}
+                    </motion.div>
+                  </div>
+                </motion.div>
+              </motion.aside>
+            )}
+          </AnimatePresence>
 
           <div className="flex-1 min-w-0 w-full">
             <main className="w-full max-w-none">

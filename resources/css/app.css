@@ -200,6 +200,90 @@ html, body, button, input, select, textarea {
     border-color: var(--primary-color);
 }
 
+/* Mobile Performance Optimizations */
+@media (max-width: 768px) {
+    /* Disable expensive animations on mobile */
+    .animate-ping,
+    .animate-pulse,
+    .animate-bounce {
+        animation: none !important;
+    }
+    
+    /* Reduce transition duration for mobile */
+    * {
+        transition-duration: 0.15s !important;
+    }
+    
+    /* Hardware acceleration for smooth animations */
+    .transition-all,
+    .transition-colors,
+    .transition-transform,
+    [class*="hover:"],
+    [class*="focus:"],
+    motion-div {
+        will-change: transform !important;
+        transform: translateZ(0) !important;
+        backface-visibility: hidden !important;
+    }
+    
+    /* Simplify backdrop blur on mobile */
+    .backdrop-blur-xl,
+    .backdrop-blur-lg {
+        backdrop-filter: blur(8px) !important;
+    }
+    
+    .backdrop-blur {
+        backdrop-filter: blur(4px) !important;
+    }
+    
+    /* Reduce shadow complexity */
+    .shadow-2xl,
+    .shadow-3xl {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+    }
+    
+    .shadow-xl {
+        box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1) !important;
+    }
+    
+    /* Disable hover effects on mobile */
+    .hover\:shadow-xl:hover,
+    .hover\:shadow-2xl:hover,
+    .hover\:shadow-3xl:hover {
+        box-shadow: inherit !important;
+    }
+    
+    /* Optimize modal animations */
+    .modal-overlay {
+        backdrop-filter: blur(8px) !important;
+    }
+    
+    /* Force GPU acceleration for nav elements */
+    nav,
+    nav * {
+        will-change: transform !important;
+        transform: translateZ(0) !important;
+    }
+}
+
+/* Prefer reduced motion for accessibility and performance */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    
+    .animate-ping,
+    .animate-pulse,
+    .animate-bounce {
+        animation: none !important;
+    }
+}
+
 /* Toast Animations */
 @keyframes toast-progress {
     from {

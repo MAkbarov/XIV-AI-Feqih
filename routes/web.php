@@ -261,6 +261,7 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::post('/system/fix-and-repair', [\App\Http\Controllers\Admin\SystemUpdateController::class, 'systemFixAndRepair'])
         ->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])
         ->name('system.fix-and-repair');
+    Route::post('/system/clear-cache-comprehensive', [\App\Http\Controllers\Admin\SystemUpdateController::class, 'clearCacheComprehensive'])->name('system.clear-cache-comprehensive');
     
     // File Upload routes
 

@@ -3,17 +3,38 @@ import Icon from '@/Components/Icon';
 import { useTheme } from '@/Components/ThemeProvider';
 import Footer from '@/Components/Footer';
 
+// Mobile detection for performance optimization
+const isMobile = () => {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+};
+
 export default function UserLayout({ children, auth, settings = {}, footerSettings = {} }) {
   const { theme, isDarkMode, toggleDarkMode } = useTheme();
   const siteName = settings.site_name || 'AI Chatbot Platform';
+  const mobileDevice = isMobile();
+  
+  // Mobile-optimized styles
+  const navClasses = mobileDevice 
+    ? "bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border-b border-white/20 dark:border-gray-700/30 shadow-lg transition-none"
+    : "bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-b border-white/20 dark:border-gray-700/30 shadow-2xl hover:shadow-3xl transition-all duration-300";
   
   return (
     <div className={`${isDarkMode ? 'dark' : ''}`}>
       <div className="min-h-screen flex flex-col" style={{ background: isDarkMode ? 'linear-gradient(135deg, #1f2937 0%, #111827 100%)' : (theme?.background_gradient || 'linear-gradient(135deg, #f9fafb 0%, #ffffff 100%)') }}>
-      <nav className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-b border-white/20 dark:border-gray-700/30 shadow-2xl hover:shadow-3xl transition-all duration-300">
+      <nav className={navClasses} style={{
+        // Hardware acceleration for smooth scrolling
+        willChange: 'transform',
+        transform: 'translateZ(0)'
+      }}>
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <Link href="/" className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/60 dark:hover:bg-gray-700/60 transition-all">
+            <Link href="/" className={`font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 px-3 py-2 rounded-lg ${
+              mobileDevice ? 'transition-none' : 'hover:bg-white/60 dark:hover:bg-gray-700/60 transition-all'
+            }`} style={{
+              // Hardware acceleration
+              willChange: 'transform',
+              transform: 'translateZ(0)'
+            }}>
               <Icon name="nav_chat" size={24} color={theme?.primary_color} />
               <span className="text-lg">{siteName}</span>
             </Link>

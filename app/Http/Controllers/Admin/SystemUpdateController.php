@@ -2002,6 +2002,102 @@ class SystemUpdateController extends Controller
     }
     
     /**
+     * Comprehensive cache clearing - all safe cache operations
+     */
+    public function clearCacheComprehensive(Request $request)
+    {
+        try {
+            // Clean JSON response - no echoing/logging to avoid JSON parse errors
+            $results = [];
+            $errors = [];
+            
+            // 1. Config cache clear
+            try {
+                Artisan::call('config:clear');
+                $results[] = '✅ Config cache təmizləndi';
+            } catch (\Exception $e) {
+                $errors[] = 'Config cache xətası: ' . $e->getMessage();
+            }
+            
+            // 2. Application cache clear
+            try {
+                Artisan::call('cache:clear');
+                $results[] = '✅ Application cache təmizləndi';
+            } catch (\Exception $e) {
+                $errors[] = 'Application cache xətası: ' . $e->getMessage();
+            }
+            
+            // 3. View cache clear
+            try {
+                Artisan::call('view:clear');
+                $results[] = '✅ View cache təmizləndi';
+            } catch (\Exception $e) {
+                $errors[] = 'View cache xətası: ' . $e->getMessage();
+            }
+            
+            // 4. Route cache clear
+            try {
+                Artisan::call('route:clear');
+                $results[] = '✅ Route cache təmizləndi';
+            } catch (\Exception $e) {
+                $errors[] = 'Route cache xətası: ' . $e->getMessage();
+            }
+            
+            // 5. Optimize cache clear (includes config, route, view)
+            try {
+                Artisan::call('optimize:clear');
+                $results[] = '✅ Optimize cache təmizləndi';
+            } catch (\Exception $e) {
+                // This might fail if not available, that's ok
+                $errors[] = 'Optimize clear xətası: ' . $e->getMessage();
+            }
+            
+            // 6. Queue restart
+            try {
+                Artisan::call('queue:restart');
+                $results[] = '✅ Queue restart edildi';
+            } catch (\Exception $e) {
+                $errors[] = 'Queue restart xətası: ' . $e->getMessage();
+            }
+            
+            // 7. OPcache reset if available
+            if (function_exists('opcache_reset')) {
+                try {
+                    opcache_reset();
+                    $results[] = '✅ OPcache reset edildi';
+                } catch (\Exception $e) {
+                    $errors[] = 'OPcache reset xətası: ' . $e->getMessage();
+                }
+            }
+            
+            // 8. Force garbage collection
+            if (function_exists('gc_collect_cycles')) {
+                try {
+                    gc_collect_cycles();
+                    $results[] = '✅ Garbage collection işlədi';
+                } catch (\Exception $e) {
+                    $errors[] = 'GC xətası: ' . $e->getMessage();
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Bütün cache-lər uğurla təmizləndi!',
+                'results' => $results,
+                'errors' => $errors,
+                'cleared_caches' => count($results)
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cache təmizləmə xətası: ' . $e->getMessage(),
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
      * Handle foreign key constraint errors by cleaning orphaned data
      */
     private function handleForeignKeyConstraintError(string $errorMessage): void

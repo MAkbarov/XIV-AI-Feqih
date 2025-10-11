@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { useToast } from '@/Components/ToastProvider';
 import Icon from '@/Components/Icon';
 import { useTheme } from '@/Components/ThemeProvider';
+import ConfirmModal from '@/Components/ConfirmModal';
 
 // Helper function to get cookie value
 const getCookie = (name) => {
@@ -27,6 +28,11 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
     const [downloadSpeed, setDownloadSpeed] = useState(null);
     const [currentStep, setCurrentStep] = useState(0);
     const [history, setHistory] = useState([]);
+    
+    // Modal states
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [showRepairModal, setShowRepairModal] = useState(false);
+    const [showCacheModal, setShowCacheModal] = useState(false);
 
     const loadHistory = async () => {
         try {
@@ -167,10 +173,128 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
         return { progress: maxProgress, step: currentStepIndex };
     };
 
-    const performUpdate = async () => {
-        if (!confirm('Sistem yeniləməyə başlayacaq. Bu proses 2-5 dəqiqə çəkə bilər.\n\nDavam etmək istəyirsiniz?')) {
-            return;
+    // Ayrıca funksiyalar
+    const handleSystemRepair = async () => {
+        setShowRepairModal(false);
+        setIsUpdating(true);
+        setUpdateStatus('updating');
+        setUpdateLog(['🔧 Sistem təmiri başlandı...']);
+        setUpdateProgress(0);
+        
+        try {
+            const response = await fetch('/admin/system/fix-and-repair', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'text/plain',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN')
+                },
+                credentials: 'same-origin'
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+            
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep incomplete line
+                
+                for (const line of lines) {
+                    if (line.trim()) {
+                        setUpdateLog(prev => [...prev, line.trim()]);
+                        
+                        // Update progress based on repair steps
+                        if (line.includes('Step 1:')) setUpdateProgress(10);
+                        else if (line.includes('Step 2:')) setUpdateProgress(20);
+                        else if (line.includes('Step 3:')) setUpdateProgress(30);
+                        else if (line.includes('Step 4:')) setUpdateProgress(40);
+                        else if (line.includes('Step 5:')) setUpdateProgress(50);
+                        else if (line.includes('Step 6:')) setUpdateProgress(60);
+                        else if (line.includes('Step 7:')) setUpdateProgress(70);
+                        else if (line.includes('Step 8:')) setUpdateProgress(80);
+                        else if (line.includes('Step 9:')) setUpdateProgress(90);
+                        else if (line.includes('REPAIR COMPLETED SUCCESSFULLY')) {
+                            setUpdateProgress(100);
+                            setUpdateStatus('completed');
+                            toast.success('Sistem təmiri uğurla tamamlandı!');
+                        }
+                        
+                        if (line.includes('[[REPAIR_SUCCESS]]')) {
+                            setUpdateStatus('completed');
+                            toast.success('Sistem təmiri uğurla tamamlandı!');
+                        } else if (line.includes('[[REPAIR_FAILED]]')) {
+                            setUpdateStatus('error');
+                            toast.error('Sistem təmiri zamanı xəta baş verdi!');
+                        }
+                    }
+                }
+            }
+            
+        } catch (error) {
+            console.error('System repair error:', error);
+            setUpdateLog(prev => [...prev, '❌ Təmir xətası: ' + error.message]);
+            setUpdateStatus('error');
+            toast.error('Sistem təmiri xətası: ' + error.message);
+        } finally {
+            setIsUpdating(false);
         }
+    };
+    
+    const handleCacheClear = async () => {
+        setShowCacheModal(false);
+        setUpdateLog(['🧹 Comprehensive cache təmizləmə başlandı...']);
+        
+        try {
+            const response = await fetch('/admin/system/clear-cache-comprehensive', {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                    'X-XSRF-TOKEN': getCookie('XSRF-TOKEN')
+                },
+                credentials: 'same-origin'
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                setUpdateLog(prev => [
+                    ...prev,
+                    '✅ Config cache təmizləndi',
+                    '✅ Application cache təmizləndi',
+                    '✅ View cache təmizləndi', 
+                    '✅ Route cache təmizləndi',
+                    '✅ Optimize cache təmizləndi',
+                    '✅ Queue restart edildi',
+                    '🎉 Cache təmizləmə tamamlandı!'
+                ]);
+                toast.success(data.message || 'Bütün cache-lər uğurla təmizləndi!');
+            } else {
+                setUpdateLog(prev => [...prev, '❌ Cache təmizləmə xətası: ' + (data.message || 'Bilinməyən xəta')]);
+                toast.error(data.message || 'Cache təmizləmə xətası');
+            }
+        } catch (error) {
+            console.error('Cache clear error:', error);
+            setUpdateLog(prev => [...prev, '❌ Cache təmizləmə xətası: ' + error.message]);
+            toast.error('Cache təmizləmə alınmadı: ' + error.message);
+        }
+    };
+
+    const performUpdate = async () => {
+        setShowUpdateModal(false);
 
         if (!window.updateDownloadUrl) {
             toast.error('Download URL tapılmadı. Əvvəlcə yeniliklər yoxlayın.');
@@ -413,95 +537,27 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
 
                                     {/* System Fix and Repair Button */}
                                     <button
-                                        onClick={async () => {
-                                            if (!confirm('Sistem təmiri başlayacaq. Migration-lar işlədilib, cache təmizlənəcək və database strukturu yoxlanılacaq.\n\nBu proses 1-3 dəqiqə çəkə bilər.\n\nDavam etmək istəyirsiniz?')) {
-                                                return;
-                                            }
-                                            
-                                            setIsUpdating(true);
-                                            setUpdateStatus('updating');
-                                            setUpdateLog(['🔧 Sistem təmiri başlandı...']);
-                                            setUpdateProgress(0);
-                                            
-                                            try {
-                                                const response = await fetch('/admin/system/fix-and-repair', {
-                                                    method: 'POST',
-                                                    headers: {
-                                                        'Accept': 'text/plain',
-                                                        'Content-Type': 'application/json',
-                                                        'X-Requested-With': 'XMLHttpRequest',
-                                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
-                                                        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN')
-                                                    },
-                                                    credentials: 'same-origin'
-                                                });
-                                                
-                                                if (!response.ok) {
-                                                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                                                }
-                                                
-                                                const reader = response.body.getReader();
-                                                const decoder = new TextDecoder();
-                                                let buffer = '';
-                                                
-                                                while (true) {
-                                                    const { done, value } = await reader.read();
-                                                    if (done) break;
-                                                    
-                                                    buffer += decoder.decode(value, { stream: true });
-                                                    const lines = buffer.split('\n');
-                                                    buffer = lines.pop(); // Keep incomplete line
-                                                    
-                                                    for (const line of lines) {
-                                                        if (line.trim()) {
-                                                            setUpdateLog(prev => [...prev, line.trim()]);
-                                                            
-                                                            // Update progress based on repair steps
-                                                            if (line.includes('Step 1:')) setUpdateProgress(10);
-                                                            else if (line.includes('Step 2:')) setUpdateProgress(20);
-                                                            else if (line.includes('Step 3:')) setUpdateProgress(30);
-                                                            else if (line.includes('Step 4:')) setUpdateProgress(40);
-                                                            else if (line.includes('Step 5:')) setUpdateProgress(50);
-                                                            else if (line.includes('Step 6:')) setUpdateProgress(60);
-                                                            else if (line.includes('Step 7:')) setUpdateProgress(70);
-                                                            else if (line.includes('Step 8:')) setUpdateProgress(80);
-                                                            else if (line.includes('Step 9:')) setUpdateProgress(90);
-                                                            else if (line.includes('REPAIR COMPLETED SUCCESSFULLY')) {
-                                                                setUpdateProgress(100);
-                                                                setUpdateStatus('completed');
-                                                                toast.success('Sistem təmiri uğurla tamamlandı!');
-                                                            }
-                                                            
-                                                            if (line.includes('[[REPAIR_SUCCESS]]')) {
-                                                                setUpdateStatus('completed');
-                                                                toast.success('Sistem təmiri uğurla tamamlandı!');
-                                                            } else if (line.includes('[[REPAIR_FAILED]]')) {
-                                                                setUpdateStatus('error');
-                                                                toast.error('Sistem təmiri zamanı xəta baş verdi!');
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                                
-                                            } catch (error) {
-                                                console.error('System repair error:', error);
-                                                setUpdateLog(prev => [...prev, '❌ Təmir xətası: ' + error.message]);
-                                                setUpdateStatus('error');
-                                                toast.error('Sistem təmiri xətası: ' + error.message);
-                                            } finally {
-                                                setIsUpdating(false);
-                                            }
-                                        }}
+                                        onClick={() => setShowRepairModal(true)}
                                         disabled={isUpdating}
                                         className="w-full py-3 px-4 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                                     >
                                         <Icon name="tools" size={16} />
                                         {isUpdating && updateStatus === 'updating' ? 'Təmir edilir...' : 'Fiksasiya və Bərpa'}
                                     </button>
+                                    
+                                    {/* Comprehensive Cache Clear Button */}
+                                    <button
+                                        onClick={() => setShowCacheModal(true)}
+                                        disabled={isUpdating}
+                                        className="w-full py-3 px-4 bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Icon name="lightning" size={16} />
+                                        Keş Təmizləmə
+                                    </button>
 
                                     {updateStatus === 'update-available' && (
                                         <button
-                                            onClick={performUpdate}
+                                            onClick={() => setShowUpdateModal(true)}
                                             disabled={isUpdating}
                                             className="w-full py-3 px-4 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                                         >
@@ -627,6 +683,66 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
                     </div>
                 </div>
             </div>
+            
+            {/* Confirmation Modals */}
+            <ConfirmModal
+                isOpen={showUpdateModal}
+                onConfirm={performUpdate}
+                onCancel={() => setShowUpdateModal(false)}
+                title="Sistem Yeniləməsi"
+                message={`Sistem yeniləməyə başlayacaq. Bu proses 2-5 dəqiqə çəkə bilər.
+
+Davam etmək istəyirsiniz?`}
+                confirmText="Yenilə"
+                cancelText="İmtina"
+                confirmButtonColor="bg-green-500 hover:bg-green-600"
+                cancelButtonColor="bg-gray-500 hover:bg-gray-600"
+                icon="download"
+                iconColor="#10b981"
+            />
+            
+            <ConfirmModal
+                isOpen={showRepairModal}
+                onConfirm={handleSystemRepair}
+                onCancel={() => setShowRepairModal(false)}
+                title="Sistem Təmiri"
+                message={`Sistem təmiri başlayacaq. Migration-lar işlədilib, cache təmizlənəcək və database strukturu yoxlanılacaq.
+
+Bu proses 1-3 dəqiqə çəkə bilər.
+
+Davam etmək istəyirsiniz?`}
+                confirmText="Təmir Et"
+                cancelText="İmtina"
+                confirmButtonColor="bg-orange-500 hover:bg-orange-600"
+                cancelButtonColor="bg-gray-500 hover:bg-gray-600"
+                icon="tools"
+                iconColor="#f97316"
+            />
+            
+            <ConfirmModal
+                isOpen={showCacheModal}
+                onConfirm={handleCacheClear}
+                onCancel={() => setShowCacheModal(false)}
+                title="Cache Təmizləmə"
+                message={`Bütün sistem cache-ləri təmizlənəcək:
+
+• Config cache
+• Application cache
+• View cache
+• Route cache
+• OPcache
+• Queue restart
+
+Bu əməliyyat təhlükəsizdir və data itməyəcək.
+
+Davam etmək istəyirsiniz?`}
+                confirmText="Təmizlə"
+                cancelText="İmtina"
+                confirmButtonColor="bg-yellow-500 hover:bg-yellow-600"
+                cancelButtonColor="bg-gray-500 hover:bg-gray-600"
+                icon="lightning"
+                iconColor="#eab308"
+            />
         </AdminLayout>
     );
 };
