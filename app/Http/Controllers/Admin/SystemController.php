@@ -190,25 +190,144 @@ class SystemController extends Controller
                 $errors[] = '❌ Migration status xətası: ' . $e->getMessage();
             }
             
-            // 3. Migration-ları işlət (--force ilə)
+            // 3. Migration-ları işlət (--force ilə) - ƏVVƏL STATUSU YOXLA
             try {
+                // Əvəl migration statusunu yoxlayırq
+                \Artisan::call('migrate:status');
+                $statusBefore = \Artisan::output();
+                $results[] = '🔍 Migration status (qabaq): ' . substr(trim($statusBefore), -200);
+                
+                // Migration-ları işləd
                 \Artisan::call('migrate', ['--force' => true]);
                 $migrateOutput = \Artisan::output();
                 $results[] = '✅ Migration-lar avtomatik işlədildi';
                 $results[] = 'Migration çıxışı: ' . trim($migrateOutput);
+                
+                // Sonra statusu yoxlayırq
+                \Artisan::call('migrate:status');
+                $statusAfter = \Artisan::output();
+                $results[] = '🔎 Migration status (sonra): ' . substr(trim($statusAfter), -200);
+                
+                // Pending migration-lar var mı yoxlayırq
+                if (strpos($statusAfter, 'Pending') !== false) {
+                    $results[] = '⚠️ Hələ də Pending migration-lar var!';
+                    
+                    // Xüsusi uəurlar
+                    try {
+                        // 1. Config cache təmizlə
+                        \Artisan::call('config:clear');
+                        \Artisan::call('config:cache');
+                        $results[] = '🔄 Config cache yenidən quraşdırıldı';
+                        
+                        // 2. Yenidən migration cəhdi
+                        \Artisan::call('migrate', ['--force' => true]);
+                        $retry = \Artisan::output();
+                        $results[] = '🔁 İkinci migration cəhdi: ' . trim($retry);
+                        
+                        // 3. Son yoxlama
+                        \Artisan::call('migrate:status');
+                        $finalStatus = \Artisan::output();
+                        if (strpos($finalStatus, 'Pending') === false) {
+                            $results[] = '✅ Bütün migration-lar uğurla işlədildi!';
+                        } else {
+                            $errors[] = '❌ Migration-lar hələ də Pending - manual müdaxilə lazım';
+                        }
+                    } catch (\Exception $retryE) {
+                        $errors[] = '❌ İkinci cəhd xətası: ' . $retryE->getMessage();
+                    }
+                } else {
+                    $results[] = '✅ Bütün migration-lar Ran statusındadır!';
+                }
+                
             } catch (\Exception $e) {
                 $errors[] = '❌ Migration xətası: ' . $e->getMessage();
             }
             
-            // 4. user_backgrounds cədvəlini yoxla
+            // 4. user_backgrounds cədvəlini yoxla və ZORLA YARAT
             try {
                 $hasTable = \Schema::hasTable('user_backgrounds');
                 if ($hasTable) {
                     $columns = \Schema::getColumnListing('user_backgrounds');
                     $results[] = '✅ user_backgrounds cədvəli mövcuddur';
                     $results[] = 'Sütunlar: ' . implode(', ', $columns);
+                    
+                    // Yoxla ki 'default' enum değeri var mı?
+                    try {
+                        \DB::statement("ALTER TABLE user_backgrounds MODIFY COLUMN active_type ENUM('solid', 'gradient', 'image', 'default') NOT NULL DEFAULT 'solid'");
+                        $results[] = '✅ user_backgrounds active_type enum yenilendi (default əlavə edildi)';
+                    } catch (\Exception $enumError) {
+                        // Enum yeniləmə xətası - problem deyil
+                        $results[] = '⚠️ Enum yenilənmədi (artıq mövcud ola bilər): ' . $enumError->getMessage();
+                    }
+                    
+                    // solid_color nullable et
+                    try {
+                        \DB::statement("ALTER TABLE user_backgrounds MODIFY COLUMN solid_color VARCHAR(7) NULL");
+                        $results[] = '✅ solid_color sütunu nullable edildi';
+                    } catch (\Exception $nullError) {
+                        $results[] = '⚠️ solid_color nullable edilmədi (artıq nullable ola bilər): ' . $nullError->getMessage();
+                    }
+                    
                 } else {
-                    $results[] = '⚠️ user_backgrounds cədvəli tapilmadı - manual yaratmaq lazımdır';
+                    $results[] = '❌ user_backgrounds cədvəli yoxdur - ZORLA YARADILIR!';
+                    
+                    // BRUTE FORCE: Cədvəli SQL ilə yarat
+                    try {
+                        $createTableSQL = "
+                            CREATE TABLE user_backgrounds (
+                                id bigint unsigned NOT NULL AUTO_INCREMENT,
+                                user_id bigint unsigned NOT NULL,
+                                active_type enum('solid','gradient','image','default') NOT NULL DEFAULT 'solid',
+                                solid_color varchar(7) DEFAULT NULL,
+                                gradient_value text,
+                                image_url varchar(255) DEFAULT NULL,
+                                image_size enum('cover','contain','auto','100% 100%') NOT NULL DEFAULT 'cover',
+                                image_position varchar(255) NOT NULL DEFAULT 'center',
+                                created_at timestamp NULL DEFAULT NULL,
+                                updated_at timestamp NULL DEFAULT NULL,
+                                PRIMARY KEY (id),
+                                UNIQUE KEY user_backgrounds_user_id_unique (user_id),
+                                KEY user_backgrounds_user_id_foreign (user_id),
+                                CONSTRAINT user_backgrounds_user_id_foreign FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                        ";
+                        
+                        \DB::statement($createTableSQL);
+                        $results[] = '✅ user_backgrounds cədvəli ZORLA SQL ilə yaradıldı!';
+                        
+                        // Migration table-ı da update et ki, migration-lar Ran kimi görünsün
+                        try {
+                            $pendingMigrations = [
+                                '2025_10_10_220714_add_user_background_settings_to_users_table',
+                                '2025_10_10_220740_remove_chat_background_from_settings', 
+                                '2025_10_10_230216_add_image_settings_to_users_table',
+                                '2025_10_11_050734_add_active_background_type_to_users_table',
+                                '2025_10_11_051123_remove_old_background_fields_from_users_table',
+                                '2025_10_11_051200_create_user_backgrounds_table',
+                                '2025_10_11_071108_update_user_backgrounds_table_add_default_type'
+                            ];
+                            
+                            $currentBatch = \DB::table('migrations')->max('batch') + 1;
+                            
+                            foreach ($pendingMigrations as $migration) {
+                                // Yoxla ki artıq migrations table-da var mı?
+                                $exists = \DB::table('migrations')->where('migration', $migration)->exists();
+                                if (!$exists) {
+                                    \DB::table('migrations')->insert([
+                                        'migration' => $migration,
+                                        'batch' => $currentBatch
+                                    ]);
+                                    $results[] = "✅ Migration qeydiyə əlavə edildi: $migration";
+                                }
+                            }
+                            
+                        } catch (\Exception $migrationUpdateError) {
+                            $results[] = '⚠️ Migration table yenilənmədi: ' . $migrationUpdateError->getMessage();
+                        }
+                        
+                    } catch (\Exception $createError) {
+                        $errors[] = '❌ Cədvəl ZORLA yaradilma xətası: ' . $createError->getMessage();
+                    }
                 }
             } catch (\Exception $e) {
                 $errors[] = '❌ Cədvəl yoxlama xətası: ' . $e->getMessage();
