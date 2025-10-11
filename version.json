@@ -14,6 +14,9 @@
                     "repository":  "https://github.com/MAkbarov/XIV-AI-Feqih"
                 },
     "changes":  [
+                    "v1.2.0: 🔧 CRITICAL: Database migration conflicts resolved - SystemController migration support fixed",
+                    "v1.2.0: 🔑 FIXED: APP_KEY generation issue that caused Laravel encryption failures",
+                    "v1.2.0: 📊 ENHANCED: Migration table reconciliation for existing tables (knowledge_categories, knowledge_base)",
                     "v1.2.0: 🎨 MAJOR UI/UX ENHANCEMENT - Modern chat interface with glass-morphism design",
                     "v1.2.0: 🔧 FIXED: Textarea focus outline removal - clean message input experience",
                     "v1.2.0: 🎯 ENHANCED: Message input area with backdrop blur and proper button grouping",
@@ -58,5 +61,5 @@
                          "mysql":  "\u003e=5.7",
                          "node":  "\u003e=16.0"
                      },
-    "update_notes":  "MAJOR UI/UX ENHANCEMENT v1.2.0: Complete modernization of chat interface with glass-morphism design, backdrop blur effects, and enhanced user experience. Key improvements: modern message input area with proper button grouping, textarea focus outline removal, background reset functionality with complete cleanup, dark mode info icon fixes, smooth animations, and comprehensive database enhancements. Perfect balance of aesthetics and functionality!"
+    "update_notes":  "MAJOR RELEASE v1.2.0: Complete platform modernization with critical infrastructure fixes! Features: glass-morphism chat interface with backdrop blur effects, resolved database migration conflicts for hosting deployment, APP_KEY generation fixes for Laravel encryption, migration table reconciliation for existing databases, modern message input with proper button grouping, background reset with complete cleanup, dark mode fixes, and smooth animations. This release ensures stable deployment across all hosting environments while delivering an enhanced user experience!"
 }
