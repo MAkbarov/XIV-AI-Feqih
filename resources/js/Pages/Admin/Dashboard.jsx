@@ -218,6 +218,96 @@ className="backdrop-blur-md bg-white/85 dark:bg-gray-800/70 rounded-2xl p-4 md:p
                                     <div className="text-xs md:text-sm opacity-80">Sistem keşini təmizlə</div>
                                 </div>
                             </button>
+                            
+                            {/* Database Repair Button */}
+                            <button
+                                onClick={async () => {
+                                    if (!confirm('Database təmir prosesi başlayacaq. Migration-lar işlədilib cədvəllər yoxlanılacaq.\n\nDavam etmək istəyirsiniz?')) {
+                                        return;
+                                    }
+                                    
+                                    toast.info('Database təmir edilir...', { duration: 2000 });
+                                    
+                                    try {
+                                        const { data } = await axios.post('/admin/system/repair-database');
+                                        
+                                        if (data?.success) {
+                                            toast.success(data.message || 'Database uğurla təmir edildi!');
+                                            
+                                            // Show detailed results
+                                            if (data.results && data.results.length > 0) {
+                                                console.log('Database Təmir Nəticələri:', data.results);
+                                                toast.info(
+                                                    `Təmir nəticəsi:\n${data.results.slice(0, 3).join('\n')}${
+                                                        data.results.length > 3 ? '\n... daha çox' : ''
+                                                    }`,
+                                                    { duration: 8000 }
+                                                );
+                                            }
+                                            
+                                            // Show errors if any
+                                            if (data.errors && data.errors.length > 0) {
+                                                console.warn('Database Təmir Xətaları:', data.errors);
+                                                toast.warning(
+                                                    `Bəzi xətalar:\n${data.errors.slice(0, 2).join('\n')}`,
+                                                    { duration: 6000 }
+                                                );
+                                            }
+                                            
+                                        } else {
+                                            toast.error(data?.message || 'Database təmir xətası');
+                                            
+                                            // Show errors if any
+                                            if (data.errors && data.errors.length > 0) {
+                                                console.error('Database Repair Errors:', data.errors);
+                                            }
+                                        }
+                                    } catch (e) {
+                                        console.error('Database repair error:', e);
+                                        toast.error('Database təmir alınmadı: ' + (e.response?.data?.message || e.message));
+                                    }
+                                }}
+                                className="w-full group flex items-center px-3 md:px-4 py-3 md:py-4 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-sm md:text-base transform hover:scale-105"
+                                type="button"
+                            >
+                                <Icon name="database" size={20} color="white" className="mr-3" />
+                                <div className="flex-1">
+                                    <div className="font-semibold">Database Təmir Et</div>
+                                    <div className="text-xs md:text-sm opacity-80">Migration-lar və cədvəllər</div>
+                                </div>
+                            </button>
+                            
+                            {/* Create user_backgrounds Table Button */}
+                            <button
+                                onClick={async () => {
+                                    if (!confirm('user_backgrounds cədvəli yaradılacaq (migration işləməz idi).\n\nDavam etmək istəyirsiniz?')) {
+                                        return;
+                                    }
+                                    
+                                    toast.info('user_backgrounds cədvəli yaradılır...', { duration: 2000 });
+                                    
+                                    try {
+                                        const { data } = await axios.post('/admin/system/create-user-backgrounds');
+                                        
+                                        if (data?.success) {
+                                            toast.success(data.message || 'Cədvəl uğurla yaradıldı!');
+                                        } else {
+                                            toast.error(data?.message || 'Cədvəl yaratma xətası');
+                                        }
+                                    } catch (e) {
+                                        console.error('Create table error:', e);
+                                        toast.error('Cədvəl yaradılma alınmadı: ' + (e.response?.data?.message || e.message));
+                                    }
+                                }}
+                                className="w-full group flex items-center px-3 md:px-4 py-3 md:py-4 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white rounded-xl transition-all duration-300 shadow-lg hover:shadow-xl text-sm md:text-base transform hover:scale-105"
+                                type="button"
+                            >
+                                <Icon name="plus" size={20} color="white" className="mr-3" />
+                                <div className="flex-1">
+                                    <div className="font-semibold">user_backgrounds Yarat</div>
+                                    <div className="text-xs md:text-sm opacity-80">Manual cədvəl yaratma</div>
+                                </div>
+                            </button>
                         </div>
                     </motion.div>
 

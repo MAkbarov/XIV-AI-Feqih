@@ -112,7 +112,7 @@ class SystemController extends Controller
     public function runArtisanCommand(Request $request): JsonResponse
     {
         $request->validate([
-            'command' => 'required|string|in:cache:clear,config:clear,route:clear,view:clear,config:cache,route:cache,view:cache'
+            'command' => 'required|string|in:cache:clear,config:clear,route:clear,view:clear,config:cache,route:cache,view:cache,migrate,migrate:status'
         ]);
         
         try {
@@ -127,6 +127,8 @@ class SystemController extends Controller
                 'config:cache' => 'Configuration cache yaradıldı',
                 'route:cache' => 'Route cache yaradıldı',
                 'view:cache' => 'View cache yaradıldı',
+                'migrate' => 'Database migration-ları işlədildi',
+                'migrate:status' => 'Migration statusu yoxlandı',
             ];
             
             if (!array_key_exists($command, $allowedCommands)) {
@@ -136,7 +138,14 @@ class SystemController extends Controller
                 ], 403);
             }
             
-            \Artisan::call($command);
+            // Migration üçün xüsusi işləm
+            if ($command === 'migrate') {
+                // Production-da --force bayrağı ilə migration-ları işlət
+                \Artisan::call('migrate', ['--force' => true]);
+            } else {
+                \Artisan::call($command);
+            }
+            
             $output = \Artisan::output();
             
             return response()->json([
@@ -149,6 +158,126 @@ class SystemController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Komanda icra edilə bilmədi: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * Database təmir və migration-ları avtomatik işlət
+     */
+    public function repairDatabase(Request $request): JsonResponse
+    {
+        try {
+            $results = [];
+            $errors = [];
+            
+            // 1. Cache təmizləmə
+            try {
+                \Artisan::call('cache:clear');
+                \Artisan::call('config:clear');
+                \Artisan::call('route:clear');
+                $results[] = '✅ Cache-lər təmizləndi';
+            } catch (\Exception $e) {
+                $errors[] = '❌ Cache təmizləmə xətası: ' . $e->getMessage();
+            }
+            
+            // 2. Migration statusunu yoxla
+            try {
+                \Artisan::call('migrate:status');
+                $migrationStatus = \Artisan::output();
+                $results[] = '✅ Migration statusu yoxlanıldı';
+            } catch (\Exception $e) {
+                $errors[] = '❌ Migration status xətası: ' . $e->getMessage();
+            }
+            
+            // 3. Migration-ları işlət (--force ilə)
+            try {
+                \Artisan::call('migrate', ['--force' => true]);
+                $migrateOutput = \Artisan::output();
+                $results[] = '✅ Migration-lar avtomatik işlədildi';
+                $results[] = 'Migration çıxışı: ' . trim($migrateOutput);
+            } catch (\Exception $e) {
+                $errors[] = '❌ Migration xətası: ' . $e->getMessage();
+            }
+            
+            // 4. user_backgrounds cədvəlini yoxla
+            try {
+                $hasTable = \Schema::hasTable('user_backgrounds');
+                if ($hasTable) {
+                    $columns = \Schema::getColumnListing('user_backgrounds');
+                    $results[] = '✅ user_backgrounds cədvəli mövcuddur';
+                    $results[] = 'Sütunlar: ' . implode(', ', $columns);
+                } else {
+                    $results[] = '⚠️ user_backgrounds cədvəli tapilmadı - manual yaratmaq lazımdır';
+                }
+            } catch (\Exception $e) {
+                $errors[] = '❌ Cədvəl yoxlama xətası: ' . $e->getMessage();
+            }
+            
+            // 5. Son cache təmizləmə
+            try {
+                \Artisan::call('cache:clear');
+                \Artisan::call('config:clear');
+                $results[] = '✅ Son cache təmizləmə tamamlandı';
+            } catch (\Exception $e) {
+                $errors[] = '❌ Son cache təmizləmə xətası: ' . $e->getMessage();
+            }
+            
+            return response()->json([
+                'success' => count($errors) === 0,
+                'message' => count($errors) === 0 ? 'Database təmir uğurla tamamlandı!' : 'Bəzi xətalar var, lakin əsas əməliyyatlar tamamlandı',
+                'results' => $results,
+                'errors' => $errors,
+                'migration_status' => $migrationStatus ?? null
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Database təmir xətası: ' . $e->getMessage(),
+                'results' => $results ?? [],
+                'errors' => array_merge($errors ?? [], [$e->getMessage()])
+            ], 500);
+        }
+    }
+    
+    /**
+     * user_backgrounds cədvəlini manual yaratmaq
+     */
+    public function createUserBackgroundsTable(Request $request): JsonResponse
+    {
+        try {
+            // Əvəl yoxla ki cədvəl var ya yox
+            if (\Schema::hasTable('user_backgrounds')) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'user_backgrounds cədvəli artıq mövcuddur!'
+                ]);
+            }
+            
+            // Cədvəli manual yarat
+            \Schema::create('user_backgrounds', function ($table) {
+                $table->id();
+                $table->foreignId('user_id')->constrained()->onDelete('cascade');
+                $table->enum('active_type', ['solid', 'gradient', 'image', 'default'])->default('solid');
+                $table->string('solid_color', 7)->nullable();
+                $table->text('gradient_value')->nullable();
+                $table->string('image_url')->nullable();
+                $table->enum('image_size', ['cover', 'contain', 'auto', '100% 100%'])->default('cover');
+                $table->string('image_position')->default('center');
+                $table->timestamps();
+                $table->unique('user_id');
+            });
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'user_backgrounds cədvəli uğurla yaradıldı!'
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Cədvəl yaratma xətası: ' . $e->getMessage()
             ], 500);
         }
     }

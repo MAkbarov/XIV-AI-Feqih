@@ -209,6 +209,10 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
     Route::get('/system/info', [\App\Http\Controllers\Admin\SystemController::class, 'getSystemInfo'])->name('system.info');
     Route::post('/system/artisan', [\App\Http\Controllers\Admin\SystemController::class, 'runArtisanCommand'])->name('system.artisan');
     
+    // Database Repair System - SSH-free hosting solution
+    Route::post('/system/repair-database', [\App\Http\Controllers\Admin\SystemController::class, 'repairDatabase'])->name('system.repair-database');
+    Route::post('/system/create-user-backgrounds', [\App\Http\Controllers\Admin\SystemController::class, 'createUserBackgroundsTable'])->name('system.create-user-backgrounds');
+    
     // Mail Settings
     Route::get('/mail-settings', [\App\Http\Controllers\Admin\MailSettingsController::class, 'index'])->name('mail-settings.index');
     Route::post('/mail-settings', [\App\Http\Controllers\Admin\MailSettingsController::class, 'update'])->name('mail-settings.update');
