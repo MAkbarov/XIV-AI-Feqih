@@ -1481,8 +1481,12 @@ class SystemUpdateController extends Controller
         // Use JSON-safe response streaming to avoid emoji encoding issues
         return response()->stream(function () {
             try {
-                $this->logMessage('=== SYSTEM FIX & REPAIR STARTED ===');
+                $this->logMessage('=== SYSTEM FIX & REPAIR STARTED (v2.1) ===');
                 $this->logMessage('SSH-free comprehensive system repair initiated');
+                $this->logMessage('DEBUG: PHP Version: ' . PHP_VERSION);
+                $this->logMessage('DEBUG: Laravel Version: ' . app()->version());
+                $this->logMessage('DEBUG: Environment: ' . app()->environment());
+                $this->logMessage('DEBUG: Database Connection: ' . config('database.default'));
                 
                 // Step 1: Clear all caches (most important)
                 $this->logMessage('Step 1: Clearing all caches...');
@@ -1543,18 +1547,56 @@ class SystemUpdateController extends Controller
                     
                     if ($pendingCount > 0) {
                         $this->logMessage('Step 4b: Running pending migrations with --force...');
+                        $this->logMessage('DEBUG: About to run migrate command with --force');
                         
                         // Clear any cached migration data first
                         if (function_exists('opcache_reset')) {
                             opcache_reset();
+                            $this->logMessage('DEBUG: OPcache reset completed');
                         }
                         
-                        Artisan::call('migrate', [
-                            '--force' => true,
-                            '--no-interaction' => true
-                        ]);
-                        $migrateOutput = Artisan::output();
-                        $this->logMessage('Migration output: ' . trim($migrateOutput));
+                        // Run migration with detailed error catching
+                        try {
+                            $this->logMessage('DEBUG: Executing Artisan::call(migrate, --force)');
+                            
+                            // Method 1: Standard Artisan::call
+                            Artisan::call('migrate', [
+                                '--force' => true,
+                                '--no-interaction' => true
+                            ]);
+                            $migrateOutput = Artisan::output();
+                            $this->logMessage('DEBUG: Migration command completed');
+                            $this->logMessage('Migration output: ' . trim($migrateOutput));
+                            
+                            if (empty(trim($migrateOutput))) {
+                                $this->logMessage('WARNING: Migration output is empty - trying alternative method');
+                                
+                                // Method 2: Direct execution via shell_exec (if available)
+                                if (function_exists('shell_exec') && function_exists('escapeshellarg')) {
+                                    $this->logMessage('DEBUG: Trying shell_exec method');
+                                    $basePath = base_path();
+                                    $command = "cd " . escapeshellarg($basePath) . " && php artisan migrate --force --no-interaction 2>&1";
+                                    $shellOutput = shell_exec($command);
+                                    $this->logMessage('Shell output: ' . trim($shellOutput ?? 'No output'));
+                                }
+                                
+                                // Method 3: Manual migration execution
+                                $this->logMessage('DEBUG: Trying manual migration execution');
+                                $this->runMigrationsManually();
+                            }
+                        } catch (\Exception $migrateError) {
+                            $this->logMessage('ERROR: Migration execution failed: ' . $migrateError->getMessage());
+                            $this->logMessage('ERROR: Migration stack trace: ' . $migrateError->getTraceAsString());
+                            
+                            // Try manual migration as fallback
+                            try {
+                                $this->logMessage('DEBUG: Attempting manual migration fallback');
+                                $this->runMigrationsManually();
+                            } catch (\Exception $fallbackError) {
+                                $this->logMessage('ERROR: Manual migration fallback failed: ' . $fallbackError->getMessage());
+                                throw $migrateError; // Throw original error
+                            }
+                        }
                         
                         // Verify migrations ran successfully
                         $this->logMessage('Step 4c: Verifying migration completion...');
@@ -1840,5 +1882,96 @@ class SystemUpdateController extends Controller
         } catch (\Exception $e) {
             $this->logMessage('⚠️ Final optimization error: ' . $e->getMessage());
         }
+    }
+    
+    /**
+     * Manual migration execution for web context
+     * This method directly executes pending migrations when Artisan::call fails
+     */
+    private function runMigrationsManually(): void
+    {
+        try {
+            $this->logMessage('INFO: Starting manual migration execution');
+            
+            // Get migration instance
+            $migrator = app('migrator');
+            $migrationPath = database_path('migrations');
+            
+            // Get pending migrations
+            $pendingMigrations = $migrator->getPendingMigrations();
+            $this->logMessage('DEBUG: Found ' . count($pendingMigrations) . ' pending migrations for manual execution');
+            
+            if (empty($pendingMigrations)) {
+                $this->logMessage('INFO: No pending migrations found in manual execution');
+                return;
+            }
+            
+            // Run each pending migration
+            foreach ($pendingMigrations as $migration) {
+                try {
+                    $this->logMessage('INFO: Manually executing migration: ' . $migration);
+                    
+                    // Load and run the migration
+                    $migrationFile = $migrationPath . '/' . $migration . '.php';
+                    if (file_exists($migrationFile)) {
+                        // Include migration file
+                        require_once $migrationFile;
+                        
+                        // Extract class name from migration filename
+                        $className = $this->getMigrationClassName($migration);
+                        
+                        if (class_exists($className)) {
+                            $migrationInstance = new $className();
+                            
+                            // Execute the up() method
+                            $migrationInstance->up();
+                            
+                            // Record in migrations table
+                            \DB::table('migrations')->insert([
+                                'migration' => $migration,
+                                'batch' => $migrator->getNextBatchNumber()
+                            ]);
+                            
+                            $this->logMessage('SUCCESS: Manual migration completed: ' . $migration);
+                        } else {
+                            $this->logMessage('ERROR: Migration class not found: ' . $className);
+                        }
+                    } else {
+                        $this->logMessage('ERROR: Migration file not found: ' . $migrationFile);
+                    }
+                    
+                } catch (\Exception $e) {
+                    $this->logMessage('ERROR: Manual migration failed for ' . $migration . ': ' . $e->getMessage());
+                    // Continue with next migration
+                }
+            }
+            
+            $this->logMessage('INFO: Manual migration execution completed');
+            
+        } catch (\Exception $e) {
+            $this->logMessage('ERROR: Manual migration execution failed: ' . $e->getMessage());
+            throw $e;
+        }
+    }
+    
+    /**
+     * Extract migration class name from filename
+     */
+    private function getMigrationClassName(string $migration): string
+    {
+        // Convert migration filename to class name
+        // e.g., 2025_10_09_000000_create_knowledge_categories_table -> CreateKnowledgeCategoriesTable
+        
+        $parts = explode('_', $migration);
+        // Remove the timestamp parts (first 4 elements: year, month, day, time)
+        $nameParts = array_slice($parts, 4);
+        
+        // Convert to StudlyCase
+        $className = '';
+        foreach ($nameParts as $part) {
+            $className .= ucfirst($part);
+        }
+        
+        return $className;
     }
 }
