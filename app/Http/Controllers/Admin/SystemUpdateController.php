@@ -1530,16 +1530,52 @@ class SystemUpdateController extends Controller
                     $this->logMessage('SUCCESS: Migrations table created');
                 }
                 
-                // Step 4: Force run all pending migrations
-                $this->logMessage('Step 4: Force running all migrations...');
+                // Step 4: Check migration status BEFORE running migrations
+                $this->logMessage('Step 4a: Checking current migration status...');
                 try {
-                    Artisan::call('migrate', [
-                        '--force' => true,
-                        '--no-interaction' => true
-                    ]);
-                    $this->logMessage('SUCCESS: All migrations completed');
+                    Artisan::call('migrate:status');
+                    $statusOutput = Artisan::output();
+                    
+                    // Count pending migrations
+                    $pendingCount = substr_count($statusOutput, 'Pending');
+                    $ranCount = substr_count($statusOutput, 'Ran');
+                    $this->logMessage("INFO: Found {$pendingCount} pending and {$ranCount} completed migrations");
+                    
+                    if ($pendingCount > 0) {
+                        $this->logMessage('Step 4b: Running pending migrations with --force...');
+                        
+                        // Clear any cached migration data first
+                        if (function_exists('opcache_reset')) {
+                            opcache_reset();
+                        }
+                        
+                        Artisan::call('migrate', [
+                            '--force' => true,
+                            '--no-interaction' => true
+                        ]);
+                        $migrateOutput = Artisan::output();
+                        $this->logMessage('Migration output: ' . trim($migrateOutput));
+                        
+                        // Verify migrations ran successfully
+                        $this->logMessage('Step 4c: Verifying migration completion...');
+                        Artisan::call('migrate:status');
+                        $newStatusOutput = Artisan::output();
+                        $newPendingCount = substr_count($newStatusOutput, 'Pending');
+                        $newRanCount = substr_count($newStatusOutput, 'Ran');
+                        
+                        if ($newPendingCount === 0) {
+                            $this->logMessage('SUCCESS: All migrations completed successfully!');
+                            $this->logMessage("Final status: {$newRanCount} migrations ran, {$newPendingCount} pending");
+                        } else {
+                            $this->logMessage("WARNING: Still {$newPendingCount} pending migrations after force run");
+                            $this->logMessage('This might indicate a structural issue with migration files');
+                        }
+                    } else {
+                        $this->logMessage('INFO: No pending migrations found - all are up to date');
+                    }
+                    
                 } catch (\Exception $e) {
-                    $this->logMessage('WARNING: Migration warning: ' . $e->getMessage());
+                    $this->logMessage('WARNING: Migration process error: ' . $e->getMessage());
                     // Continue with repairs
                 }
                 
