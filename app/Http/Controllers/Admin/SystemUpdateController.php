@@ -662,7 +662,7 @@ class SystemUpdateController extends Controller
             
         } catch (\Exception $e) {
             $this->logMessage('WARNING: Smart asset deployment failed: ' . $e->getMessage());
-            $this->logMessage('INFO: Will continue with existing assets if available');
+            $this->logMessage('INFO:  Will continue with existing assets if available');
         }
     }
     

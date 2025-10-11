@@ -17,6 +17,7 @@
                     "v1.2.0: 🔧 CRITICAL: Database migration conflicts resolved - SystemController migration support fixed",
                     "v1.2.0: 🔑 FIXED: APP_KEY generation issue that caused Laravel encryption failures",
                     "v1.2.0: 📊 ENHANCED: Migration table reconciliation for existing tables (knowledge_categories, knowledge_base)",
+                    "v1.2.0: 🚀 NEW: SystemUpdate page Fiksasiya və Bərpa button for hosting deployment repair",
                     "v1.2.0: 🎨 MAJOR UI/UX ENHANCEMENT - Modern chat interface with glass-morphism design",
                     "v1.2.0: 🔧 FIXED: Textarea focus outline removal - clean message input experience",
                     "v1.2.0: 🎯 ENHANCED: Message input area with backdrop blur and proper button grouping",

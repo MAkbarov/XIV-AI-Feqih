@@ -38,6 +38,7 @@ Route::get('/api/theme', [AdminSettingsController::class, 'theme'])->name('api.t
 Route::get('/api/guest-terms', [\App\Http\Controllers\Admin\TermsAndPrivacyController::class, 'getGuestTerms'])->name('api.guest-terms');
 Route::get('/api/chat-limits', [ChatController::class, 'getChatLimits'])->name('api.chat-limits');
 
+
 // User Background Settings API (Guest and Authenticated)
 Route::prefix('api/user')->name('api.user.')->group(function () {
     Route::middleware('auth')->group(function () {

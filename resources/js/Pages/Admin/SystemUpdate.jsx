@@ -411,6 +411,94 @@ const SystemUpdate = ({ footerSettings, currentVersion, updateAvailable, latestV
                                         {updateStatus === 'checking' ? 'Yoxlanır...' : 'Yenilikləri Yoxla'}
                                     </button>
 
+                                    {/* System Fix and Repair Button */}
+                                    <button
+                                        onClick={async () => {
+                                            if (!confirm('Sistem təmiri başlayacaq. Migration-lar işlədilib, cache təmizlənəcək və database strukturu yoxlanılacaq.\n\nBu proses 1-3 dəqiqə çəkə bilər.\n\nDavam etmək istəyirsiniz?')) {
+                                                return;
+                                            }
+                                            
+                                            setIsUpdating(true);
+                                            setUpdateStatus('updating');
+                                            setUpdateLog(['🔧 Sistem təmiri başlandı...']);
+                                            setUpdateProgress(0);
+                                            
+                                            try {
+                                                const response = await fetch('/admin/system/fix-and-repair', {
+                                                    method: 'POST',
+                                                    headers: {
+                                                        'Accept': 'text/plain',
+                                                        'Content-Type': 'application/json',
+                                                        'X-Requested-With': 'XMLHttpRequest',
+                                                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content'),
+                                                        'X-XSRF-TOKEN': getCookie('XSRF-TOKEN')
+                                                    },
+                                                    credentials: 'same-origin'
+                                                });
+                                                
+                                                if (!response.ok) {
+                                                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                                                }
+                                                
+                                                const reader = response.body.getReader();
+                                                const decoder = new TextDecoder();
+                                                let buffer = '';
+                                                
+                                                while (true) {
+                                                    const { done, value } = await reader.read();
+                                                    if (done) break;
+                                                    
+                                                    buffer += decoder.decode(value, { stream: true });
+                                                    const lines = buffer.split('\n');
+                                                    buffer = lines.pop(); // Keep incomplete line
+                                                    
+                                                    for (const line of lines) {
+                                                        if (line.trim()) {
+                                                            setUpdateLog(prev => [...prev, line.trim()]);
+                                                            
+                                                            // Update progress based on repair steps
+                                                            if (line.includes('Step 1:')) setUpdateProgress(10);
+                                                            else if (line.includes('Step 2:')) setUpdateProgress(20);
+                                                            else if (line.includes('Step 3:')) setUpdateProgress(30);
+                                                            else if (line.includes('Step 4:')) setUpdateProgress(40);
+                                                            else if (line.includes('Step 5:')) setUpdateProgress(50);
+                                                            else if (line.includes('Step 6:')) setUpdateProgress(60);
+                                                            else if (line.includes('Step 7:')) setUpdateProgress(70);
+                                                            else if (line.includes('Step 8:')) setUpdateProgress(80);
+                                                            else if (line.includes('Step 9:')) setUpdateProgress(90);
+                                                            else if (line.includes('REPAIR COMPLETED SUCCESSFULLY')) {
+                                                                setUpdateProgress(100);
+                                                                setUpdateStatus('completed');
+                                                                toast.success('Sistem təmiri uğurla tamamlandı!');
+                                                            }
+                                                            
+                                                            if (line.includes('[[REPAIR_SUCCESS]]')) {
+                                                                setUpdateStatus('completed');
+                                                                toast.success('Sistem təmiri uğurla tamamlandı!');
+                                                            } else if (line.includes('[[REPAIR_FAILED]]')) {
+                                                                setUpdateStatus('error');
+                                                                toast.error('Sistem təmiri zamanı xəta baş verdi!');
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                
+                                            } catch (error) {
+                                                console.error('System repair error:', error);
+                                                setUpdateLog(prev => [...prev, '❌ Təmir xətası: ' + error.message]);
+                                                setUpdateStatus('error');
+                                                toast.error('Sistem təmiri xətası: ' + error.message);
+                                            } finally {
+                                                setIsUpdating(false);
+                                            }
+                                        }}
+                                        disabled={isUpdating}
+                                        className="w-full py-3 px-4 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-400 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Icon name="tools" size={16} />
+                                        {isUpdating && updateStatus === 'updating' ? 'Təmir edilir...' : 'Fiksasiya və Bərpa'}
+                                    </button>
+
                                     {updateStatus === 'update-available' && (
                                         <button
                                             onClick={performUpdate}
