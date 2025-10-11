@@ -11,7 +11,7 @@
 return [
     'name' => 'XIV AI Fəqih',
     'version' => '',
-    'build' => '20251011546',
+    'build' => '20251011476',
     'release_date' => '11.10.2025',
     'author' => 'DeXIV',
     'website' => 'https://dexiv.me',
@@ -39,6 +39,7 @@ return [
         'Multi-language Support',
     ]
 ];
+
 
 
 
