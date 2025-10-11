@@ -10,7 +10,7 @@ export default function UserLayout({ children, auth, settings = {}, footerSettin
   return (
     <div className={`${isDarkMode ? 'dark' : ''}`}>
       <div className="min-h-screen flex flex-col" style={{ background: isDarkMode ? 'linear-gradient(135deg, #1f2937 0%, #111827 100%)' : (theme?.background_gradient || 'linear-gradient(135deg, #f9fafb 0%, #ffffff 100%)') }}>
-      <nav className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-lg border-b border-white/20 dark:border-gray-700/30 shadow-lg">
+      <nav className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl border-b border-white/20 dark:border-gray-700/30 shadow-2xl hover:shadow-3xl transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-6">
             <Link href="/" className="font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/60 dark:hover:bg-gray-700/60 transition-all">

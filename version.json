@@ -1,6 +1,6 @@
 ﻿{
     "name":  "XIV AI Fəqih",
-    "version":  "",
+    "version":  "v1.2.0",
     "initial_version":  "1.0.0",
     "release_date":  "2025-10-11",
     "author":  {
@@ -14,6 +14,18 @@
                     "repository":  "https://github.com/MAkbarov/XIV-AI-Feqih"
                 },
     "changes":  [
+                    "v1.2.0: 🎨 MAJOR UI/UX ENHANCEMENT - Modern chat interface with glass-morphism design",
+                    "v1.2.0: 🔧 FIXED: Textarea focus outline removal - clean message input experience",
+                    "v1.2.0: 🎯 ENHANCED: Message input area with backdrop blur and proper button grouping",
+                    "v1.2.0: ✨ NEW: Background reset functionality with complete MySQL and file cleanup",
+                    "v1.2.0: 🖼️ IMPROVED: User background settings with \u0027default\u0027 type support",
+                    "v1.2.0: 🌙 FIXED: Dark mode info icon visibility - always dark for better contrast",
+                    "v1.2.0: 📱 RESPONSIVE: Enhanced mobile and desktop info button styling",
+                    "v1.2.0: 🔄 CORRECTED: Enter button icon from \u0027keyboard\u0027 to \u0027enter\u0027",
+                    "v1.2.0: 💾 DATABASE: Added \u0027default\u0027 enum to user_backgrounds active_type column",
+                    "v1.2.0: 🧹 CLEANUP: Proper file deletion on background reset (both MySQL and filesystem)",
+                    "v1.2.0: 🎭 ANIMATION: Smooth limit info popover with backdrop blur effects",
+                    "v1.2.0: 🔍 LOGGING: Enhanced debugging for background image deletion processes",
                     "vv1.0.14: v",
                     "v1.0.17: CRITICAL: Post-repair cache clearing - prevents 500 error after repair operations",
                     "v1.0.17: ENHANCED: Aggressive bootstrap cache clearing to resolve APP_KEY issues",
@@ -46,5 +58,5 @@
                          "mysql":  "\u003e=5.7",
                          "node":  "\u003e=16.0"
                      },
-    "update_notes":  "Revolutionary SSH-free deployment v1.0.8: Breakthrough \u0027Fiksasiya və Bərpa\u0027 (Fix \u0026 Repair) system enables comprehensive problem resolution directly from web panel. No more SSH dependency! Features 9-step automated repair process including migration execution, database schema fixes, cache clearing, and AiService verification. Perfect for hosting providers and non-technical administrators."
+    "update_notes":  "MAJOR UI/UX ENHANCEMENT v1.2.0: Complete modernization of chat interface with glass-morphism design, backdrop blur effects, and enhanced user experience. Key improvements: modern message input area with proper button grouping, textarea focus outline removal, background reset functionality with complete cleanup, dark mode info icon fixes, smooth animations, and comprehensive database enhancements. Perfect balance of aesthetics and functionality!"
 }

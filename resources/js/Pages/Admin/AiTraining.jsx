@@ -171,6 +171,36 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
         }
     };
 
+    // Training states - moved before useEffect to avoid initialization order issues
+    const [urlTrainingData, setUrlTrainingData] = useState({ 
+        url: '', 
+        single: true, 
+        maxDepth: 1, 
+        level: 3,  // 🆕 Yeni parametr: xülasə səviyyəsi
+        category: 'imported', 
+        source: '' 
+    });
+    const [urlProgress, setUrlProgress] = useState(0);
+    const [stopping, setStopping] = useState(false);
+    const [progressToken, setProgressToken] = useState(null);
+    const [isTrainingInProgress, setIsTrainingInProgress] = useState(false); // URL training status
+
+    // URL training-i dayandırmaq üçün funksiya - moved before useEffect
+    const stopTraining = async () => {
+        if (progressToken) {
+            try {
+                const stopKey = 'url_train:stop:' + progressToken;
+                await axios.post('/admin/ai-training/import-stop', {
+                    progress_token: progressToken,
+                    stop_key: stopKey
+                });
+                console.log('Training dayandırıldı:', progressToken);
+            } catch (error) {
+                console.error('Training dayandırma xətası:', error);
+            }
+        }
+    };
+
     // Load categories on mount
     React.useEffect(() => {
         loadCategories();
@@ -202,18 +232,6 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
             window.removeEventListener('unload', handleUnload);
         };
     }, [isTrainingInProgress, progressToken]);
-    const [urlTrainingData, setUrlTrainingData] = useState({ 
-        url: '', 
-        single: true, 
-        maxDepth: 1, 
-        level: 3,  // 🆕 Yeni parametr: xülasə səviyyəsi
-        category: 'imported', 
-        source: '' 
-    });
-    const [urlProgress, setUrlProgress] = useState(0);
-    const [stopping, setStopping] = useState(false);
-    const [progressToken, setProgressToken] = useState(null);
-    const [isTrainingInProgress, setIsTrainingInProgress] = useState(false); // URL training status
     const [qaTrainingData, setQaTrainingData] = useState({
         question: '',
         answer: '',
@@ -422,22 +440,6 @@ const AiTraining = ({ knowledgeItems, systemPrompt, pagination, search: initialS
             .catch(() => {
                 toast.error('Status dəyişmədi!');
             });
-    };
-    
-    // URL training-i dayandırmaq üçün funksiya
-    const stopTraining = async () => {
-        if (progressToken) {
-            try {
-                const stopKey = 'url_train:stop:' + progressToken;
-                await axios.post('/admin/ai-training/import-stop', {
-                    progress_token: progressToken,
-                    stop_key: stopKey
-                });
-                console.log('Training dayandırıldı:', progressToken);
-            } catch (error) {
-                console.error('Training dayandırma xətası:', error);
-            }
-        }
     };
     
     // Bütün məlumatları sil funksiyası

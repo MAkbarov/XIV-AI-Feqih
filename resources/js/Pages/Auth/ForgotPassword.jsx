@@ -35,19 +35,21 @@ function ForgotPasswordContent({ status, theme = {}, settings = {} }) {
                 </Link>
             </div>
 
-            {/* Dark Mode Toggle */}
-            <div className="absolute top-4 right-4">
-                <button
-                    onClick={toggleDarkMode}
-                    className={`p-3 rounded-xl transition-all duration-300 hover:scale-110 ${
-                        isDarkMode 
-                            ? 'bg-gray-800 text-yellow-400 hover:bg-gray-700' 
-                            : 'bg-white/20 text-gray-600 hover:bg-white/30'
-                    }`}
-                    title={isDarkMode ? 'Gündüz rejimi' : 'Gecə rejimi'}
-                >
-                    <Icon name={isDarkMode ? 'sunny' : 'moon'} size={20} />
-                </button>
+            {/* Dark mode toggle */}
+            <div className="fixed top-2 right-2 sm:top-4 sm:right-4 z-50">
+                <div className="flex items-center gap-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full px-3 py-2 shadow-lg">
+                    <Icon name="sun" size={14} color={!isDarkMode ? '#fbbf24' : '#9ca3af'} />
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            checked={isDarkMode} 
+                            onChange={() => toggleDarkMode()}
+                            className="sr-only peer" 
+                        />
+                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600"></div>
+                    </label>
+                    <Icon name="moon" size={14} color={isDarkMode ? '#60a5fa' : '#9ca3af'} />
+                </div>
             </div>
 
             <div className="w-full max-w-md">

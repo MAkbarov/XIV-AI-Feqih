@@ -643,6 +643,23 @@ function runAllMigrations($pdo) {
                 updated_at timestamp NULL,
                 INDEX system_update_logs_status_index (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        // User Background Management (v1.2.1)
+        '0015_01_01_000000_create_user_backgrounds_table' => "
+            CREATE TABLE IF NOT EXISTS user_backgrounds (
+                id bigint unsigned AUTO_INCREMENT PRIMARY KEY,
+                user_id bigint unsigned NOT NULL,
+                active_type enum('solid','gradient','image') DEFAULT 'solid',
+                solid_color varchar(7) DEFAULT '#f3f4f6',
+                gradient_value text NULL,
+                image_url varchar(255) NULL,
+                image_size enum('cover','contain','auto','100% 100%') DEFAULT 'cover',
+                image_position varchar(255) DEFAULT 'center',
+                created_at timestamp NULL,
+                updated_at timestamp NULL,
+                UNIQUE KEY unique_user_id (user_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
 
     $batch = 1;
@@ -706,7 +723,7 @@ function seedDefaultData($pdo) {
     // Default site settings (align with App\Models\Settings::getDefaults)
     $settings = [
         // Application Settings
-        'app_version' => '1.0.0',
+        'app_version' => '1.2.1',
         'site_name' => 'XIV AI Chatbot Platform',
         'chatbot_name' => 'XIV AI',
         
@@ -998,7 +1015,7 @@ function buildFrontendAssets($basePath) {
                 <h1 class="text-4xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mt-6 tracking-tight">XIV AI Platform</h1>
                 <p class="text-gray-600 mt-2 text-lg">Quraşdırma Sihirbazı</p>
                 <div class="mt-2 text-sm text-gray-500">
-                    <i class="fas fa-code"></i> Versiya 1.0.8 • 
+                    <i class="fas fa-code"></i> Versiya 1.2.1 • 
                     <i class="fas fa-user"></i> Müəllif: DeXIV
                 </div>
                 
@@ -1042,7 +1059,7 @@ function buildFrontendAssets($basePath) {
             </div>
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-gray-800 tracking-tight">XIV AI</h1>
-                <p class="text-gray-600 mt-1">Quraşdırma sihirbazı • Versiya 1.0 • Müəllif: DeXIV</p>
+                <p class="text-gray-600 mt-1">Quraşdırma sihirbazı • Versiya 1.2.1 • Müəllif: DeXIV</p>
                 <div class="mt-4 flex justify-center space-x-2">
                     <div id="step-indicator-1" class="w-3 h-3 bg-blue-500 rounded-full"></div>
                     <div id="step-indicator-2" class="w-3 h-3 bg-gray-300 rounded-full"></div>

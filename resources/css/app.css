@@ -560,3 +560,44 @@ input[type="radio"]:checked:after {
 .overflow-x-auto {
     @apply enhanced-scrollbar;
 }
+
+/* Remove textarea focus outline and ring */
+textarea:focus,
+input:focus {
+    outline: none !important;
+    box-shadow: none !important;
+    border: none !important;
+    ring: 0 !important;
+}
+
+textarea:focus-visible,
+input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+/* Smooth limit info popover animation */
+@keyframes limitPopoverShow {
+    from {
+        opacity: 0;
+        transform: translateY(-8px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.limit-popover-animate {
+    animation: limitPopoverShow 0.2s ease-out forwards;
+}
+
+/* Smooth info icon hover effect */
+.info-icon-hover {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.info-icon-hover:hover {
+    transform: scale(1.1);
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+}

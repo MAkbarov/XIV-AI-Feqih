@@ -13,6 +13,8 @@ import DonationDisplay from '@/Components/DonationDisplay';
 import GuestTermsModal from '@/Components/GuestTermsModal';
 import DeleteChatModal from '@/Components/DeleteChatModal';
 import TypingDots from '@/Components/TypingDots';
+import FloatingSettingsBubble from '@/Components/FloatingSettingsBubble';
+import { loadUserBackground } from '@/Utils/BackgroundLoader';
 import { createPortal } from 'react-dom';
 
 // Simple Typewriter Effect Component
@@ -399,6 +401,77 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [refreshTheme]);
+  
+  // Load user background settings on component mount
+  useEffect(() => {
+    // Ensure chat container is rendered before loading background
+    const timer = setTimeout(() => {
+      loadUserBackground(!!auth?.user);
+      
+      // Retry if first attempt fails
+      setTimeout(() => {
+        const chatContainer = document.querySelector('#chat-container, [data-chat-background]');
+        if (chatContainer && !chatContainer.style.backgroundImage && !chatContainer.style.background) {
+          console.log('Chat background retry - first attempt may have failed');
+          loadUserBackground(!!auth?.user);
+        }
+      }, 1000);
+    }, 500);
+    
+    // Listen for background changes from settings modal
+    const handleBackgroundChange = (event) => {
+      // Apply background immediately if data is provided in event
+      if (event.detail && event.detail.background) {
+        const chatContainer = document.querySelector('#chat-container, [data-chat-background]');
+        if (chatContainer) {
+          if (event.detail.type === 'image') {
+            chatContainer.style.backgroundImage = event.detail.background;
+            chatContainer.style.backgroundSize = event.detail.imageSize || 'cover';
+            chatContainer.style.backgroundPosition = event.detail.imagePosition || 'center';
+            chatContainer.style.backgroundRepeat = 'no-repeat';
+            chatContainer.style.backgroundColor = '';
+          } else {
+            chatContainer.style.backgroundImage = '';
+            chatContainer.style.backgroundSize = '';
+            chatContainer.style.backgroundPosition = '';
+            chatContainer.style.backgroundRepeat = '';
+            
+            if (event.detail.type === 'gradient') {
+              // For gradients, use background property
+              chatContainer.style.background = event.detail.background;
+              chatContainer.style.backgroundColor = ''; // Clear any solid color
+            } else if (event.detail.type === 'solid') {
+              // For solid colors, completely clear all gradient properties
+              chatContainer.style.setProperty('background', 'none', 'important');
+              chatContainer.style.setProperty('background-image', 'none', 'important');
+              chatContainer.style.setProperty('background-size', 'auto', 'important');
+              chatContainer.style.setProperty('background-position', '0% 0%', 'important');
+              chatContainer.style.setProperty('background-repeat', 'repeat', 'important');
+              chatContainer.style.setProperty('background-attachment', 'scroll', 'important');
+              chatContainer.style.setProperty('background-origin', 'padding-box', 'important');
+              chatContainer.style.setProperty('background-clip', 'border-box', 'important');
+              chatContainer.style.setProperty('background-color', event.detail.background, 'important');
+              console.log('Chat listener applied solid color:', event.detail.background);
+            } else {
+              // Default fallback
+              chatContainer.style.backgroundColor = event.detail.background;
+              chatContainer.style.background = ''; 
+            }
+          }
+        }
+      }
+      
+      // Also reload from server as backup
+      setTimeout(() => loadUserBackground(!!auth?.user), 200);
+    };
+    
+    window.addEventListener('backgroundChanged', handleBackgroundChange);
+    
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('backgroundChanged', handleBackgroundChange);
+    };
+  }, [auth?.user]);
 
   // Save guest sessions to localStorage
   const saveGuestSession = (sessionId, title, messages) => {
@@ -765,25 +838,57 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
 
       <div className="w-full px-4 md:px-4 lg:px-6 py-4 md:py-4 lg:py-6 flex-1 pb-0">
         
-        <header className="mb-4 md:mb-6 flex flex-wrap items-center justify-between bg-white/90 dark:bg-gray-800/90 backdrop-blur-lg rounded-2xl p-3 md:p-4 shadow-xl w-full">
-          <div className="flex items-start md:items-center gap-2">
+        <motion.header 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+          className="mb-4 md:mb-6 flex flex-wrap items-center justify-between bg-gradient-to-r from-white/95 via-white/90 to-white/95 dark:from-gray-800/95 dark:via-gray-800/90 dark:to-gray-800/95 backdrop-blur-xl rounded-3xl p-4 md:p-6 shadow-2xl shadow-purple-500/10 dark:shadow-purple-500/20 w-full border border-white/20 dark:border-gray-700/50 hover:shadow-3xl transition-all duration-300"
+        >
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="flex items-start md:items-center gap-3"
+          >
             {/* Mobile sidebar toggle */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, rotate: 5 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="md:hidden p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="md:hidden p-3 rounded-xl bg-gradient-to-br from-purple-500/10 to-indigo-500/10 text-gray-700 dark:text-gray-300 hover:from-purple-500/20 hover:to-indigo-500/20 border border-purple-200/30 dark:border-purple-700/30 backdrop-blur-sm transition-all duration-300 shadow-lg hover:shadow-xl"
               aria-label="Söhbət tarixçəsi"
             >
               <Icon name="menu" size={20} />
-            </button>
+            </motion.button>
             {/* Desktop site name */}
-            <h1 className="hidden md:flex text-lg md:text-2xl lg:text-3xl font-semibold text-gray-800 dark:text-gray-100 items-center gap-2">
-{settings.brand_mode === 'logo' && (brandLogoUrl || settings.brand_logo_url) ? (
-                <img src={brandLogoUrl || settings.brand_logo_url} alt="logo" className="w-6 h-6 md:w-8 md:h-8 object-contain rounded" />
+            <motion.h1 
+              initial={{ opacity: 0, x: -15 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="hidden md:flex text-lg md:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-gray-800 via-gray-700 to-gray-800 dark:from-gray-100 dark:via-gray-200 dark:to-gray-100 bg-clip-text text-transparent items-center gap-3 hover:from-purple-600 hover:via-indigo-600 hover:to-purple-600 transition-all duration-500"
+            >
+              {settings.brand_mode === 'logo' && (brandLogoUrl || settings.brand_logo_url) ? (
+                <motion.img 
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  src={brandLogoUrl || settings.brand_logo_url} 
+                  alt="logo" 
+                  className="w-8 h-8 md:w-10 md:h-10 object-contain rounded-xl shadow-lg border border-white/20 dark:border-gray-700/50" 
+                />
               ) : settings.brand_mode === 'icon' ? (
-                <Icon name={settings.brand_icon_name || 'nav_chat'} size={24} className="md:w-8 md:h-8" color={primaryColor} />
+                <motion.div
+                  whileHover={{ scale: 1.1, rotate: 5 }}
+                  className="p-2 rounded-xl bg-gradient-to-br from-purple-500/10 to-indigo-500/10 border border-purple-200/30 dark:border-purple-700/30 shadow-lg"
+                >
+                  <Icon name={settings.brand_icon_name || 'nav_chat'} size={28} color={primaryColor} />
+                </motion.div>
               ) : null}
-              <span className="truncate">{siteName}</span>
-            </h1>
+              <motion.span 
+                whileHover={{ scale: 1.02 }}
+                className="truncate font-extrabold tracking-wide"
+              >
+                {siteName}
+              </motion.span>
+            </motion.h1>
             {/* Mobile limit + mode switch (stacked) */}
             <div className="md:hidden flex flex-col gap-1 ml-1">
               <div className="flex items-center gap-2 text-[12px] font-medium text-gray-700 dark:text-gray-300" ref={limitInfoRef}>
@@ -795,7 +900,7 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); openLimitPopover(e.currentTarget); setShowLimitInfo(v => !v); }}
-                  className="ml-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  className="ml-1 p-1 rounded-md text-gray-800 hover:text-black hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:scale-110"
                   title="Limit haqqında"
                 ><Icon name="limit_info" size={18} />
                 </button>
@@ -814,16 +919,25 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
                 <Icon name="moon" size={16} color={fullTheme.isDarkMode ? '#60a5fa' : '#9ca3af'} />
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Desktop right actions (includes limit + switch) */}
-          <div className="hidden md:flex items-center gap-2 flex-wrap justify-end">
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
+            className="hidden md:flex items-center gap-3 flex-wrap justify-end"
+          >
             {/* Limit Badge */}
-            <div className={`relative px-2 py-1 rounded-lg text-xs font-medium ${
-              limitBlocked ? 'bg-red-100 text-red-800 border border-red-200' : 
-              limitInfo.remaining <= 5 ? 'bg-yellow-100 text-yellow-800 border border-yellow-200' :
-              'bg-green-100 text-green-800 border border-green-200'
-            }`}>
+            <motion.div 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className={`relative px-4 py-2 rounded-xl text-xs font-semibold backdrop-blur-sm border shadow-lg transition-all duration-300 ${
+                limitBlocked ? 'bg-gradient-to-r from-red-50 to-red-100 text-red-800 border-red-200 shadow-red-200/50' : 
+                limitInfo.remaining <= 5 ? 'bg-gradient-to-r from-yellow-50 to-yellow-100 text-yellow-800 border-yellow-200 shadow-yellow-200/50' :
+                'bg-gradient-to-r from-green-50 to-green-100 text-green-800 border-green-200 shadow-green-200/50'
+              }`}
+            >
               <div className="flex items-center gap-1">
                 <Icon name={limitBlocked ? 'warning' : 'limit'} size={12} />
                 <span>
@@ -840,13 +954,13 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); openLimitPopover(e.currentTarget); setShowLimitInfo(v => !v); }}
-                  className="ml-1 text-gray-600 hover:text-gray-800 dark:text-gray-300 dark:hover:text-gray-100"
+                  className="ml-1 p-1 rounded-md text-gray-800 hover:text-black hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:scale-110"
                   title="Limit haqqında"
                 >
                 <Icon name="limit_info" size={18} />
                 </button>
               </div>
-            </div>
+            </motion.div>
             {/* Dark mode toggle switch */}
             <div className="hidden md:flex items-center gap-2">
               <Icon name="sun" size={16} color={!fullTheme.isDarkMode ? '#fbbf24' : '#9ca3af'} />
@@ -866,41 +980,53 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
               <>
                 <span className="hidden md:inline text-sm text-gray-600 dark:text-gray-300">Salam, {auth.user.name}</span>
                 {auth.user.role?.name === 'admin' && (
-                  <Link href="/admin" className="px-2 md:px-3 py-2 rounded-lg text-sm bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm flex items-center gap-1">
-                    <Icon name="settings" size={16} />
-                    <span className="hidden md:inline">Admin Panel</span>
-                  </Link>
+                  <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                    <Link href="/admin" className="px-4 py-2.5 rounded-xl text-sm bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 font-medium">
+                      <Icon name="settings" size={16} />
+                      <span className="hidden md:inline">Admin Panel</span>
+                    </Link>
+                  </motion.div>
                 )}
-                <Link href="/profile" className="px-2 md:px-3 py-2 rounded-lg text-sm bg-gray-200 text-gray-700 hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500 transition-colors shadow-sm flex items-center gap-1">
-                  <Icon name="users" size={16} />
-                  <span className="hidden md:inline">Profil</span>
-                </Link>
-                <Link href="/logout" method="post" as="button" className="px-2 md:px-3 py-2 rounded-lg text-sm bg-red-500 text-white hover:bg-red-600 transition-colors shadow-sm flex items-center gap-1">
-                  <Icon name="logout" size={16} />
-                  <span className="hidden md:inline">Çıxış</span>
-                </Link>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link href="/profile" className="px-4 py-2.5 rounded-xl text-sm bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 hover:from-gray-200 hover:to-gray-300 dark:from-gray-600 dark:to-gray-700 dark:text-gray-200 dark:hover:from-gray-500 dark:hover:to-gray-600 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 font-medium">
+                    <Icon name="users" size={16} />
+                    <span className="hidden md:inline">Profil</span>
+                  </Link>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link href="/logout" method="post" as="button" className="px-4 py-2.5 rounded-xl text-sm bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 font-medium">
+                    <Icon name="logout" size={16} />
+                    <span className="hidden md:inline">Çıxış</span>
+                  </Link>
+                </motion.div>
               </>
             ) : (
               <>
-                <Link href="/login" className="px-2 md:px-4 py-2 rounded-lg text-sm bg-white border text-emerald-700 hover:bg-emerald-50 dark:bg-gray-800 dark:text-emerald-400 dark:hover:bg-gray-700 transition-colors shadow-sm flex items-center gap-1" style={{ borderColor: primaryColor }}>
-                  <Icon name="users" size={16} />
-                  <span className="hidden md:inline">Daxil ol</span>
-                </Link>
-                <Link href="/register" className="px-2 md:px-4 py-2 rounded-lg text-sm text-white transition-colors shadow-sm flex items-center gap-1" style={{ backgroundColor: primaryColor }}>
-                  <Icon name="user_add" size={16} />
-                  <span className="hidden md:inline">Qeydiyyat</span>
-                </Link>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link href="/login" className="px-4 py-2.5 rounded-xl text-sm bg-white/80 backdrop-blur-sm border-2 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-300 dark:bg-gray-800/80 dark:text-emerald-400 dark:hover:bg-gray-700 dark:border-gray-600 dark:hover:border-emerald-500 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 font-medium" style={{ borderColor: primaryColor }}>
+                    <Icon name="users" size={16} />
+                    <span className="hidden md:inline">Daxil ol</span>
+                  </Link>
+                </motion.div>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Link href="/register" className="px-4 py-2.5 rounded-xl text-sm text-white font-medium transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 bg-gradient-to-r hover:scale-105" style={{ background: `linear-gradient(135deg, ${primaryColor}DD, ${secondaryColor || primaryColor}DD)` }}>
+                    <Icon name="user_add" size={16} />
+                    <span className="hidden md:inline">Qeydiyyat</span>
+                  </Link>
+                </motion.div>
               </>
             )}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.05, rotate: 2 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => { setCurrentSessionId(null); setMessages([]); }}
-              className="px-2 md:px-3 py-2 rounded-lg text-sm text-white transition-colors shadow-sm flex items-center gap-1"
-              style={{ backgroundColor: secondaryColor }}
+              className="px-4 py-2.5 rounded-xl text-sm text-white font-medium transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 bg-gradient-to-r hover:brightness-110"
+              style={{ background: `linear-gradient(135deg, ${secondaryColor}DD, ${primaryColor || secondaryColor}DD)` }}
             >
               <Icon name="edit" size={16} />
               <span className="hidden md:inline">Yeni söhbət</span>
-            </button>
-          </div>
+            </motion.button>
+          </motion.div>
 
           {/* Mobile right actions (icons row only) */}
           <div className="flex md:hidden items-center gap-2 ml-auto overflow-x-auto">
@@ -937,7 +1063,7 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
               <Icon name="edit" size={16} />
             </button>
           </div>
-        </header>
+        </motion.header>
 
         <div className="flex gap-0 md:gap-2 lg:gap-3">
           {/* Mobile sidebar overlay */}
@@ -952,7 +1078,7 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
           <aside className={`${
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
           } md:translate-x-0 fixed md:relative top-0 left-0 z-50 md:z-auto w-80 md:w-[280px] lg:w-[300px] xl:w-[320px] h-full md:h-auto transform transition-transform duration-300 ease-in-out md:block md:flex-shrink-0`}>
-            <div className="h-[80vh] md:h-[70vh] lg:h-[65vh] backdrop-blur bg-white/95 dark:bg-gray-800/95 md:bg-white/80 md:dark:bg-gray-800/80 border-r md:border border-emerald-200 dark:border-gray-600 rounded-2xl overflow-hidden p-4 md:p-3 lg:p-3 shadow-xl md:shadow-none flex flex-col" style={{ minWidth: '250px' }}>
+            <div className="h-[80vh] md:h-[70vh] lg:h-[65vh] backdrop-blur-xl bg-white/95 dark:bg-gray-800/95 md:bg-white/90 md:dark:bg-gray-800/90 border-r md:border border-emerald-200 dark:border-gray-600 rounded-2xl overflow-hidden p-4 md:p-3 lg:p-3 shadow-2xl md:shadow-2xl hover:shadow-3xl dark:shadow-purple-500/10 transition-all duration-300 flex flex-col" style={{ minWidth: '250px' }}>
               {/* Mobile site name */}
               <div className="md:hidden flex items-center gap-2 mb-4 p-3 bg-white/50 dark:bg-gray-700/50 rounded-lg">
 {settings.brand_mode === 'logo' && (brandLogoUrl || settings.brand_logo_url) ? (
@@ -1022,9 +1148,11 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
           <div className="flex-1 min-w-0 w-full">
             <main className="w-full max-w-none">
               <div 
-                className={`w-full backdrop-blur border border-emerald-200 dark:border-gray-600 rounded-2xl p-3 md:p-6 flex flex-col shadow-lg relative ${
-                  chatBackground === 'transparent' ? 'bg-white/90 dark:bg-gray-800/90' : ''
+                className={`w-full backdrop-blur-xl border border-emerald-200 dark:border-gray-600 rounded-3xl p-3 md:p-6 flex flex-col shadow-2xl hover:shadow-3xl dark:shadow-purple-500/10 border-white/20 dark:border-gray-700/30 transition-all duration-300 relative ${
+                  chatBackground === 'transparent' ? 'bg-white/95 dark:bg-gray-800/95' : ''
                 }`}
+                data-chat-background="true"
+                id="chat-container"
                 style={{ 
                   minHeight: 'calc(100vh - 200px)',
                   background: chatBackground !== 'transparent' ? chatBackground : undefined,
@@ -1074,7 +1202,7 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: .2 }}
-                                className={`group relative max-w-[90%] md:max-w-[85%] rounded-xl px-3 md:px-4 py-2 md:py-3 ${m.role==='user' ? 'ml-auto bg-emerald-50 dark:bg-emerald-900/30' : 'mr-auto bg-gray-100 dark:bg-gray-700/80'} shadow-md border border-emerald-100 dark:border-gray-600`}
+                                className={`group relative max-w-[90%] md:max-w-[85%] rounded-xl px-3 md:px-4 py-2 md:py-3 ${m.role==='user' ? 'ml-auto bg-emerald-50/60 dark:bg-emerald-900/20' : 'mr-auto bg-gray-100/60 dark:bg-gray-700/50'} shadow-lg hover:shadow-xl dark:shadow-2xl dark:hover:shadow-3xl border border-emerald-100 dark:border-gray-600 backdrop-blur-md transition-all duration-300 hover:-translate-y-0.5`}
                                 style={{ }}
                     >
                       <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 mb-1">
@@ -1308,70 +1436,80 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
                 )}
               </div>
 
-              <div className="mt-3 md:mt-4 flex flex-col gap-2">
-                <div className="relative">
-                  <textarea
-                    ref={inputRef}
-                    className={`w-full ${fullTheme.isDarkMode ? 'glass-input-dark' : 'glass-input'} resize-none transition-all text-sm md:text-base pr-24 md:pr-28 min-h-[60px] md:min-h-[70px] ${
-                      isGuest && isOverLimit ? 'border-red-400 focus:ring-red-400/50 bg-red-50/50 dark:bg-red-900/50' : ''
-                    } ${
-                      isChatBlocked || isTypewriting ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-700' : ''
-                    }`}
-                    placeholder={limitBlocked ? `Limit doldu - ${formatCountdown(countdownTime)}` : isTypewriting ? 'Çatbot yazır... gözləyin' : (isChatBlocked ? 'İstifadə şərtlərini qəbul edin...' : 'Mesajınızı yazın...')}
-                    value={input}
-                    onChange={e => {
-                      if (!isChatBlocked && !isTypewriting) {
-                        const val = e.target.value;
-                        setInput(inputLimit > 0 ? val.slice(0, inputLimit) : val);
-                      }
-                      // Auto-grow height
-                      try {
-                        const ta = inputRef.current;
-                        if (ta) {
-                          ta.style.height = 'auto';
-                          const maxH = window.innerWidth < 768 ? 160 : 220; // limit max height
-                          ta.style.height = Math.min(ta.scrollHeight, maxH) + 'px';
+              {/* Message Input Area - Modern Design */}
+              <div className="mt-3 md:mt-4">
+                <div className="relative bg-white/50 dark:bg-gray-800/50 backdrop-blur-lg rounded-2xl border border-white/30 dark:border-gray-700/30 shadow-2xl hover:shadow-3xl transition-all duration-300 p-1">
+                  <div className="relative flex items-end gap-2">
+                    {/* Main textarea */}
+                    <textarea
+                      ref={inputRef}
+                      className={`flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 resize-none text-sm md:text-base p-3 placeholder-gray-500 dark:placeholder-gray-400 text-gray-900 dark:text-gray-100 min-h-[50px] max-h-[150px] ${
+                        isGuest && isOverLimit ? 'text-red-600 placeholder-red-400' : ''
+                      } ${
+                        isChatBlocked || isTypewriting ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
+                      placeholder={limitBlocked ? `Limit doldu - ${formatCountdown(countdownTime)}` : isTypewriting ? 'Çatbot yazır... gözləyin' : (isChatBlocked ? 'İstifadə şərtlərini qəbul edin...' : 'Mesajınızı yazın...')}
+                      value={input}
+                      onChange={e => {
+                        if (!isChatBlocked && !isTypewriting) {
+                          const val = e.target.value;
+                          setInput(inputLimit > 0 ? val.slice(0, inputLimit) : val);
                         }
-                      } catch {}
-                    }}
-                    onInput={() => {
-                      try {
-                        const ta = inputRef.current;
-                        if (ta) {
-                          ta.style.height = 'auto';
-                          const maxH = window.innerWidth < 768 ? 160 : 220;
-                          ta.style.height = Math.min(ta.scrollHeight, maxH) + 'px';
-                        }
-                      } catch {}
-                    }}
-                    onKeyDown={handleKeyDown}
-                    disabled={isChatBlocked}
-                    rows={2}
-                  />
-                  
-                  {/* Enter toggle button */}
-                  <button
-                    onClick={() => setLocalEnterSends(!localEnterSends)}
-                    className={`absolute right-14 md:right-20 top-1/2 transform -translate-y-1/2 p-2 md:p-2.5 rounded-lg font-medium transition-all shadow-sm hover:shadow-md border ${
-                      localEnterSends ? 'bg-emerald-500 text-white border-emerald-500' : 'bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
-                    }`}
-                    title={localEnterSends ? 'Enter ilə göndər aktiv' : 'Enter ilə göndər deaktiv'}
-                  >
-                    <Icon name="enter" size={16} />
-                  </button>
-                  
-                  {/* Send/Stop button inside textarea */}
-                  <button
-                    onClick={() => (loading || isTypewriting) ? stopGeneration() : sendMessage()}
-                    disabled={(isGuest && isOverLimit) || isChatBlocked}
-                    className={`absolute right-2 top-1/2 transform -translate-y-1/2 p-3 md:p-4 rounded-lg text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-lg hover:shadow-xl`}
-                    style={{ 
-                      backgroundColor: (loading || isTypewriting) ? '#ef4444' : ((isGuest && isOverLimit) || isChatBlocked ? '#ef4444' : primaryColor) 
-                    }}
-                    title={(loading || isTypewriting) ? 'Dayandır' : (isChatBlocked ? 'İstifadə şərtlərini qəbul edin' : 'Göndər')}
-                  >
-                    <Icon name={(loading || isTypewriting) ? 'stop' : (isChatBlocked ? 'shield_check' : 'send')} size={18} />
-                  </button>
+                        // Auto-grow height
+                        try {
+                          const ta = inputRef.current;
+                          if (ta) {
+                            ta.style.height = 'auto';
+                            const maxH = window.innerWidth < 768 ? 150 : 150; // consistent max height
+                            ta.style.height = Math.min(ta.scrollHeight, maxH) + 'px';
+                          }
+                        } catch {}
+                      }}
+                      onInput={() => {
+                        try {
+                          const ta = inputRef.current;
+                          if (ta) {
+                            ta.style.height = 'auto';
+                            const maxH = window.innerWidth < 768 ? 150 : 150;
+                            ta.style.height = Math.min(ta.scrollHeight, maxH) + 'px';
+                          }
+                        } catch {}
+                      }}
+                      onKeyDown={handleKeyDown}
+                      disabled={isChatBlocked}
+                      rows={2}
+                    />
+                    
+                    {/* Action buttons group */}
+                    <div className="flex items-center gap-1 pb-3 pr-1">
+                      {/* Enter toggle button - closer to send button */}
+                      <button
+                        onClick={() => setLocalEnterSends(!localEnterSends)}
+                        className={`p-2 rounded-lg transition-all shadow-sm hover:shadow-md border backdrop-blur-sm ${
+                          localEnterSends 
+                            ? 'bg-emerald-500/90 text-white border-emerald-400/50 shadow-emerald-500/25' 
+                            : 'bg-white/70 dark:bg-gray-700/70 text-gray-600 dark:text-gray-300 border-gray-300/50 dark:border-gray-600/50'
+                        }`}
+                        title={localEnterSends ? 'Enter ilə göndər aktiv' : 'Enter ilə göndər deaktiv'}
+                      >
+                        <Icon name="enter" size={14} />
+                      </button>
+                      
+                      {/* Send/Stop button */}
+                      <button
+                        onClick={() => (loading || isTypewriting) ? stopGeneration() : sendMessage()}
+                        disabled={(isGuest && isOverLimit) || isChatBlocked}
+                        className={`p-3 rounded-xl text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-all shadow-lg hover:shadow-xl hover:scale-105 backdrop-blur-sm`}
+                        style={{ 
+                          backgroundColor: (loading || isTypewriting) ? '#ef4444' : ((isGuest && isOverLimit) || isChatBlocked ? '#ef4444' : primaryColor),
+                          boxShadow: `0 4px 20px ${(loading || isTypewriting) ? '#ef444420' : `${primaryColor}20`}`
+                        }}
+                        title={(loading || isTypewriting) ? 'Dayandır' : (isChatBlocked ? 'İstifadə şərtlərini qəbul edin' : 'Göndər')}
+                      >
+                        <Icon name={(loading || isTypewriting) ? 'stop' : (isChatBlocked ? 'shield_check' : 'send')} size={16} />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
               {isGuest && (
@@ -1434,7 +1572,7 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
           {/* click-catcher background (transparent) */}
           <div className="absolute inset-0" />
           <div
-            className={`absolute w-[18rem] md:w-[20rem] p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl text-xs text-gray-700 dark:text-gray-200`}
+            className={`absolute w-[18rem] md:w-[20rem] p-3 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-2xl text-xs text-gray-700 dark:text-gray-200 limit-popover-animate backdrop-blur-lg`}
             style={{ top: limitPopoverPos.top, left: limitPopoverPos.left }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -1468,6 +1606,9 @@ const siteName = settings.site_name || 'XIV AI Chatbot Platform';
         chatTitle={sessionToDelete?.title || sessionToDelete?.session_id?.slice(0, 8) || ''}
         siteName={siteName}
       />
+      
+      {/* Floating Settings Bubble */}
+      <FloatingSettingsBubble isAuthenticated={!!auth?.user} />
     </div>
     </div>
   );

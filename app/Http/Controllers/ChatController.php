@@ -80,11 +80,6 @@ class ChatController extends Controller
                 'accent_color' => Settings::get('accent_color', '#fbbf24'),
                 'background_gradient' => Settings::get('background_gradient', 'linear-gradient(135deg, #10b981 0%, #065f46 100%)'),
                 'text_color' => Settings::get('text_color', '#1f2937'),
-                // Chat Background Settings
-                'chat_background_type' => Settings::get('chat_background_type', 'default'),
-                'chat_background_color' => Settings::get('chat_background_color', '#f3f4f6'),
-                'chat_background_gradient' => Settings::get('chat_background_gradient', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'),
-                'chat_background_image' => Settings::get('chat_background_image', ''),
             ],
             'footerSettings' => [
                 'footer_enabled' => (bool) Settings::get('footer_enabled', true),

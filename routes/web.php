@@ -37,6 +37,16 @@ Route::get('/api/footer-settings', [ChatController::class, 'getFooterSettings'])
 Route::get('/api/theme', [AdminSettingsController::class, 'theme'])->name('api.theme');
 Route::get('/api/guest-terms', [\App\Http\Controllers\Admin\TermsAndPrivacyController::class, 'getGuestTerms'])->name('api.guest-terms');
 Route::get('/api/chat-limits', [ChatController::class, 'getChatLimits'])->name('api.chat-limits');
+
+// User Background Settings API (Guest and Authenticated)
+Route::prefix('api/user')->name('api.user.')->group(function () {
+    Route::middleware('auth')->group(function () {
+        Route::get('/background-settings', [\App\Http\Controllers\Api\UserBackgroundController::class, 'getSettings'])->name('background-settings.get');
+        Route::post('/background-settings', [\App\Http\Controllers\Api\UserBackgroundController::class, 'saveSettings'])->name('background-settings.save');
+        Route::post('/upload-background-image', [\App\Http\Controllers\Api\UserBackgroundController::class, 'uploadImage'])->name('background-image.upload');
+        Route::delete('/background-image', [\App\Http\Controllers\Api\UserBackgroundController::class, 'deleteImage'])->name('background-image.delete');
+    });
+});
 Route::get('/api/app-version', function () {
     try {
         $versionFile = base_path('version.json');
@@ -248,8 +258,6 @@ Route::middleware(['auth', 'admin'])->prefix('admin')->name('admin.')->group(fun
         ->name('system.fix-and-repair');
     
     // File Upload routes
-    Route::post('/upload/background-image', [\App\Http\Controllers\Admin\FileUploadController::class, 'uploadBackgroundImage'])->name('upload.background-image');
-    Route::delete('/upload/background-image', [\App\Http\Controllers\Admin\FileUploadController::class, 'deleteBackgroundImage'])->name('delete.background-image');
 
     // Branding uploads
     Route::post('/upload/site-logo', [\App\Http\Controllers\Admin\FileUploadController::class, 'uploadSiteLogo'])->name('upload.site-logo');

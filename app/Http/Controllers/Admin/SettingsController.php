@@ -45,11 +45,6 @@ class SettingsController extends Controller
             'favicon_url' => Settings::get('favicon_url', ''),
             // Admin Settings
             'admin_email' => Settings::get('admin_email', config('mail.from.address', 'admin@example.com')),
-            // Chat Background Settings
-            'chat_background_type' => Settings::get('chat_background_type', 'default'),
-            'chat_background_color' => Settings::get('chat_background_color', '#f3f4f6'),
-            'chat_background_gradient' => Settings::get('chat_background_gradient', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'),
-            'chat_background_image' => Settings::get('chat_background_image', ''),
         ];
 
         return Inertia::render('Admin/Settings', $this->addFooterDataToResponse([
@@ -91,11 +86,6 @@ class SettingsController extends Controller
                 'favicon_url' => 'nullable|string|max:500',
                 // Admin validation
                 'admin_email' => 'nullable|email|max:255',
-                // Chat background validation
-                'chat_background_type' => 'required|in:default,solid,gradient,image',
-                'chat_background_color' => 'nullable|string|regex:/^#[0-9A-Fa-f]{6}$/',
-                'chat_background_gradient' => 'nullable|string|max:500',
-                'chat_background_image' => 'nullable|string|max:500',
             ]);
 
             // Do not overwrite existing admin_email with null/empty values
@@ -140,16 +130,11 @@ class SettingsController extends Controller
     public function theme()
     {
         return response()->json([
-            'primary_color' => Settings::get('primary_color', '#10b981'),
-            'secondary_color' => Settings::get('secondary_color', '#97a5a1'),
+            'primary_color' => Settings::get('primary_color', '#6366f1'),
+            'secondary_color' => Settings::get('secondary_color', '#8b5cf6'),
             'accent_color' => Settings::get('accent_color', '#fbbf24'),
-            'background_gradient' => Settings::get('background_gradient', 'linear-gradient(135deg, green 10%, black 100%)'),
+            'background_gradient' => Settings::get('background_gradient', 'linear-gradient(135deg, #f9fafb 0%, #ffffff 100%)'),
             'text_color' => Settings::get('text_color', '#1f2937'),
-            // Chat background settings
-            'chat_background_type' => Settings::get('chat_background_type', 'default'),
-            'chat_background_color' => Settings::get('chat_background_color', '#f3f4f6'),
-            'chat_background_gradient' => Settings::get('chat_background_gradient', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'),
-            'chat_background_image' => Settings::get('chat_background_image', ''),
         ]);
     }
 }

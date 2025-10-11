@@ -84,11 +84,11 @@ class Settings extends Model
     public static function getDefaults()
     {
         return [
-'site_name' => 'XIV AI Chatbot Platform',
-            'primary_color' => '#10b981',
-            'secondary_color' => '#059669',
+            'site_name' => 'XIV AI Chatbot Platform',
+            'primary_color' => '#6366f1',
+            'secondary_color' => '#8b5cf6',
             'accent_color' => '#fbbf24',
-            'background_gradient' => 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            'background_gradient' => 'linear-gradient(135deg, #f9fafb 0%, #ffffff 100%)',
             'text_color' => '#1f2937',
             'chatbot_name' => 'AI Assistant',
             'guest_message_limit' => 10,
