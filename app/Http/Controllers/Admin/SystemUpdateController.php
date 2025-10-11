@@ -1,4 +1,5 @@
 <?php
+// Version 2.3 - Enhanced Migration System with Table Reconciliation
 
 namespace App\Http\Controllers\Admin;
 

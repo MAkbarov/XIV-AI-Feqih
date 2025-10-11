@@ -121,16 +121,16 @@ class UserBackgroundController extends Controller
                     // Clear other types when setting solid
                     $updateData['gradient_value'] = null;
                     $updateData['image_url'] = null;
-                    $updateData['image_size'] = null;
-                    $updateData['image_position'] = null;
+                    $updateData['image_size'] = 'cover'; // Default instead of NULL
+                    $updateData['image_position'] = 'center'; // Default instead of NULL
                     break;
                 case 'gradient':
                     $updateData['gradient_value'] = $request->gradient ?: $request->color;
                     // Clear other types when setting gradient
                     $updateData['solid_color'] = null;
                     $updateData['image_url'] = null;
-                    $updateData['image_size'] = null;
-                    $updateData['image_position'] = null;
+                    $updateData['image_size'] = 'cover'; // Default instead of NULL
+                    $updateData['image_position'] = 'center'; // Default instead of NULL
                     break;
                 case 'image':
                     if ($request->image) {
@@ -154,8 +154,8 @@ class UserBackgroundController extends Controller
                     $updateData['solid_color'] = null;
                     $updateData['gradient_value'] = null;
                     $updateData['image_url'] = null;
-                    $updateData['image_size'] = null;
-                    $updateData['image_position'] = null;
+                    $updateData['image_size'] = 'cover'; // Default instead of NULL
+                    $updateData['image_position'] = 'center'; // Default instead of NULL
                     
                     // Delete any existing background image file
                     if ($background->image_url) {
@@ -181,6 +181,14 @@ class UserBackgroundController extends Controller
             }
             if ($request->imagePosition && $background->image_url) {
                 $updateData['image_position'] = $request->imagePosition;
+            }
+            
+            // Ensure image_size and image_position are never null
+            if (!isset($updateData['image_size']) || $updateData['image_size'] === null) {
+                $updateData['image_size'] = 'cover';
+            }
+            if (!isset($updateData['image_position']) || $updateData['image_position'] === null) {
+                $updateData['image_position'] = 'center';
             }
 
             $background->update($updateData);
